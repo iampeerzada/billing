@@ -5,15 +5,8 @@ import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
 import cors from "cors";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Initialize SQLite database
-// In production bundle, we want to ensure the db is in the root directory relative to the server
-const dbPath = process.env.NODE_ENV === 'production' 
-  ? path.join(process.cwd(), "data.db")
-  : path.join(__dirname, "data.db");
-
+// Safe database path for production VPS and local dev
+const dbPath = path.join(process.cwd(), "data.db");
 const db = new Database(dbPath);
 
 // Create tables
