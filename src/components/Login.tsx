@@ -9,11 +9,9 @@ interface LoginProps {
   onBackToHome?: () => void;
 }
 
-// Obfuscated Credentials
+// Obfuscated Credentials for Superadmin Fallback
 const S_UID = "OTU5NTk1NjM5Mg==";
 const S_PWD = "aUZhc3RYQEFkbWluMjAyNQ==";
-const A_UID = "YWRtaW4=";
-const A_PWD = "YWRtaW4=";
 
 export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginProps) {
   const [isSignUp, setIsSignUp] = useState(defaultIsSignUp);
@@ -31,19 +29,55 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
 
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
   const [plans, setPlans] = useState<any[]>([]);
 
-  React.useEffect(() => {
-    const p = localStorage.getItem('system_plans');
-    if (p) {
-      setPlans(JSON.parse(p));
-    } else {
-      setPlans([
-        { id: '1', name: 'Starter', prices: { monthly: 99 } },
-        { id: '2', name: 'Pro', prices: { monthly: 249 } }
-      ]);
+  // Professional Mail Utility
+  const sendWelcomeEmail = async (tenantData: any) => {
+    try {
+      const emailContent = `
+        <h2 style="color: #0f172a;">Welcome to iFastX, ${tenantData.name}!</h2>
+        <p>Your 1-day free trial account has been created successfully. We are excited to have you onboard.</p>
+        <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>Your Login ID:</strong> ${tenantData.loginId}</p>
+          <p style="margin: 10px 0 0 0;"><strong>Quick Note:</strong> Please follow the <strong>Setup Wizard</strong> on your first login to configure your business profile and tax details.</p>
+        </div>
+        <p>If you need any assistance, feel free to contact our support team at support@ifastx.in.</p>
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="https://ifastx.in/billing" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold;">Login to Your Dashboard</a>
+        </div>
+      `;
+
+      await fetch('https://ifastx.in/mail.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: tenantData.email,
+          subject: 'Welcome to iFastX GST Billing Platform - Setup Required',
+          message: emailContent,
+          type: 'support'
+        })
+      });
+    } catch (err) {
+      console.error("Welcome Email Error:", err);
     }
+  };
+
+  React.useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/plans`);
+        if (res.ok) {
+          const data = await res.json();
+          setPlans(data);
+        }
+      } catch (e) {
+        setPlans([
+          { id: '1', name: 'Starter', prices: { monthly: 99 } },
+          { id: '2', name: 'Pro', prices: { monthly: 249 } }
+        ]);
+      }
+    };
+    fetchPlans();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -51,9 +85,15 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
     setIsLoading(true);
     setError('');
 
-    setTimeout(() => {
+    try {
+      // 1. Superadmin Hardcoded Fallback Check
+      if (!isSignUp && btoa(userid) === S_UID && btoa(password) === S_PWD) {
+        onLogin('superadmin');
+        return;
+      }
+
+      // 2. Handle Sign Up
       if (isSignUp) {
-        // Register new tenant trial
         if (!signupData.companyName || !signupData.email || !signupData.userid || !signupData.password) {
           setError('Please fill all required fields');
           setIsLoading(false);
@@ -69,60 +109,58 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
           password: signupData.password,
           planId: '1',
           status: 'Active',
+          setupCompleted: 0,
           joinedAt: new Date().toISOString().split('T')[0],
-          // Trial expires in 1 day
           validTill: new Date(Date.now() + 86400000).toISOString().split('T')[0]
         };
 
-        const systemAdmins = JSON.parse(localStorage.getItem('system_admins') || '[]');
-        systemAdmins.push(newTenant);
-        localStorage.setItem('system_admins', JSON.stringify(systemAdmins));
-        
-        localStorage.setItem('active_tenant', JSON.stringify(newTenant));
-        onLogin('admin');
-        return;
-      }
+        const res = await fetch(`${API_URL}/api/tenants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newTenant)
+        });
 
-      // Basic obfuscation check for superadmin
-      if (btoa(userid) === S_UID && btoa(password) === S_PWD) {
-        onLogin('superadmin');
-        return;
-      }
-
-      // Check dynamic tenants managed by superadmin
-      const systemAdmins = JSON.parse(localStorage.getItem('system_admins') || '[]');
-      const matchedTenant = systemAdmins.find((a: any) => a.loginId === userid && a.password === password);
-
-      if (matchedTenant) {
-        if (matchedTenant.status !== 'Active') {
-          setError('Account is blocked. Please contact Superadmin.');
+        if (res.ok) {
+          await sendWelcomeEmail(newTenant);
+          // Auto-login after signup
+          const loginRes = await fetch(`${API_URL}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ loginId: signupData.userid, password: signupData.password })
+          });
+          if (loginRes.ok) {
+            const data = await loginRes.json();
+            localStorage.setItem('active_tenant', JSON.stringify(data.tenant));
+            onLogin('admin');
+            return;
+          }
+        } else {
+          setError('User ID or Email already exists.');
           setIsLoading(false);
           return;
         }
-        localStorage.setItem('active_tenant', JSON.stringify(matchedTenant));
-        onLogin('admin');
-        return;
       }
 
-      // Fallback Admin
-      if (btoa(userid.toLowerCase()) === A_UID && btoa(password.toLowerCase()) === A_PWD) {
-        // Set mock active tenant
-        const backupAdmin = {
-          id: 'admin_demo',
-          name: 'Demo Admin Account',
-          email: 'admin@demo.com',
-          planId: '2',
-          status: 'Active',
-          joinedAt: '2023-01-01',
-          validTill: '2026-12-31'
-        };
-        localStorage.setItem('active_tenant', JSON.stringify(backupAdmin));
-        onLogin('admin');
+      // 3. Regular Login
+      const response = await fetch(`${API_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: userid, password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const tenant = data.tenant;
+        localStorage.setItem('active_tenant', JSON.stringify(tenant));
+        onLogin(tenant.loginId === 'admin' ? 'superadmin' : 'admin');
       } else {
-        setError('Invalid User ID or Password. Please try again.');
-        setIsLoading(false);
+        setError('Invalid User ID or Password.');
       }
-    }, 800);
+    } catch (err) {
+      setError('Connection to backend failed. Please check your VPS API.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -175,20 +213,15 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
 
             <div className="bg-gradient-to-r from-blue-900/50 to-indigo-900/50 rounded-2xl border border-blue-500/30 p-6 backdrop-blur-md">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-emerald-400 font-bold text-sm tracking-wider uppercase">Current Pricing Offers</span>
-                <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded">Save up to 60%</span>
+                <span className="text-emerald-400 font-bold text-sm tracking-wider uppercase">Official Support Available</span>
+                <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded">24/7 Assistance</span>
               </div>
               <div className="space-y-3">
-                {plans.slice(0, 2).map((plan, idx) => (
-                  <div key={plan.id} className="flex items-center justify-between">
-                    <span className="text-slate-300">
-                      <span className="text-white font-bold">{plan.name}</span>
-                    </span>
-                    <span className="font-mono text-white">₹{plan.prices?.yearly || (plan.price ? plan.price * 12 : 0)}/yr</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50 text-blue-300 font-medium text-sm text-right flex-col items-end">
-                 Upgrade from your admin dashboard anytime.
+                <p className="text-slate-300 text-sm">
+                  Need help with setup? Reach out to <span className="text-white font-bold">support@ifastx.in</span>
+                </p>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50 text-blue-300 font-medium text-sm">
+                  Powered by FastX Technology Solutions
                 </div>
               </div>
             </div>
@@ -300,7 +333,7 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
             ) : (
               <>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">User ID</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">User ID or Email</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <User size={18} className="text-slate-400" />
@@ -308,7 +341,7 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
                     <input
                       type="text"
                       required
-                      placeholder="Enter User ID"
+                      placeholder="Enter ID or Email"
                       value={userid}
                       onChange={(e) => setUserid(e.target.value)}
                       className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-slate-800"
@@ -362,9 +395,11 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
           </form>
 
           <div className="mt-8 text-center text-sm text-slate-500 bg-slate-100/50 p-4 rounded-xl border border-slate-200 border-dashed">
-            <p className="font-medium text-slate-700 mb-1">Demo Access</p>
-            <p>Admin Login: <span className="font-mono font-bold text-slate-800">admin</span> / <span className="font-mono font-bold text-slate-800">admin</span></p>
-            <p className="text-xs mt-2 italic">You can also use credentials created via Superadmin.</p>
+            <p className="font-medium text-slate-700 mb-1">Official Support</p>
+            <p className="flex items-center justify-center gap-2">
+              <Mail size={14} /> support@ifastx.in
+            </p>
+            <p className="text-xs mt-2 italic">You will receive a professional welcome email upon signup.</p>
           </div>
         </div>
       </div>

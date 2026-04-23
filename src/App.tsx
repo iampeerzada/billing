@@ -26,6 +26,7 @@ import { Login } from './components/Login';
 import { ItemMaster } from './components/ItemMaster';
 import { VendorMaster } from './components/VendorMaster';
 import { Home } from './components/Home';
+import { SetupWizard } from './components/SetupWizard';
 import { Menu } from 'lucide-react';
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<'admin' | 'superadmin' | null>(null);
   const [activeTenant, setActiveTenant] = useState<any>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
   const [appRoute, setAppRoute] = useState<'home' | 'login' | 'signup' | 'app'>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -45,7 +47,7 @@ export default function App() {
     if (authStatus === 'true' && role) {
       handleLogin(role, true);
       if (tab) {
-        // Will be overwritten inside handleLogin if expired, which is correct
+        // Will be overwritten inside handleLogin if expired/needs setup, which is correct
         setTimeout(() => setActiveTab(tab), 50);
       }
     }
@@ -67,6 +69,15 @@ export default function App() {
         const tenant = JSON.parse(tenantStr);
         setActiveTenant(tenant);
         
+        // Check if setup is needed
+        if (tenant.setupCompleted === 0) {
+          setNeedsSetup(true);
+          setActiveTab('setup');
+          return;
+        } else {
+          setNeedsSetup(false);
+        }
+
         // Check trial or subscription expiration
         if (tenant.validTill) {
           const expired = new Date().toISOString().split('T')[0] > tenant.validTill;

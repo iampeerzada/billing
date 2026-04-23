@@ -97,8 +97,13 @@ db.exec(`
     planId TEXT,
     expiryDate TEXT,
     status TEXT DEFAULT 'Active',
+    setupCompleted INTEGER DEFAULT 0, -- 0 = No, 1 = Yes
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  -- Initial Default Admin Tenant
+  INSERT OR IGNORE INTO tenants (id, name, email, loginId, password, status, setupCompleted) 
+  VALUES ('admin', 'Main Admin', 'admin@ifastx.in', 'admin', 'admin123', 'Active', 1);
 
   CREATE TABLE IF NOT EXISTS plans (
     id TEXT PRIMARY KEY,
@@ -108,10 +113,6 @@ db.exec(`
     features TEXT, -- JSON array
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-
-  -- Initial Default Admin Tenant
-  INSERT OR IGNORE INTO tenants (id, name, email, loginId, password, status) 
-  VALUES ('admin', 'Main Admin', 'admin@ifastx.in', 'admin', 'admin123', 'Active');
 `);
 
 async function startServer() {
@@ -124,29 +125,17 @@ async function startServer() {
   // Invoices API
   app.post("/api/invoices", (req, res) => {
     try {
-      const invoice = req.body;
+      const inv = req.body;
       const stmt = db.prepare(`
-        INSERT OR REPLACE INTO invoices (
-          id, invoiceNumber, date, customerData, itemsData, taxType, 
-          subtotal, cgst, sgst, igst, total, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO invoices (id, invoiceNumber, date, customerData, itemsData, taxType, subtotal, cgst, sgst, igst, total, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-
       stmt.run(
-        invoice.id,
-        invoice.invoiceNumber,
-        invoice.date,
-        JSON.stringify(invoice.customer),
-        JSON.stringify(invoice.items),
-        invoice.taxType,
-        invoice.subtotal,
-        invoice.cgst,
-        invoice.sgst,
-        invoice.igst,
-        invoice.total,
-        invoice.status
+        inv.id, inv.invoiceNumber, inv.date, 
+        JSON.stringify(inv.customerData), 
+        JSON.stringify(inv.itemsData),
+        inv.taxType, inv.subtotal, inv.cgst, inv.sgst, inv.igst, inv.total, inv.status
       );
-
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
@@ -156,68 +145,10 @@ async function startServer() {
   app.get("/api/invoices", (req, res) => {
     try {
       const invoices = db.prepare("SELECT * FROM invoices ORDER BY createdAt DESC").all();
-      const formatted = invoices.map((inv: any) => ({
+      const formatted = invoices.map(inv => ({
         ...inv,
-        customer: JSON.parse(inv.customerData),
-        items: JSON.parse(inv.itemsData)
-      }));
-      res.json(formatted);
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Estimates API
-  app.post("/api/estimates", (req, res) => {
-    try {
-      const est = req.body;
-      const stmt = db.prepare(`
-        INSERT OR REPLACE INTO estimates (id, estimateNumber, date, customerData, itemsData, taxType, total, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      stmt.run(est.id, est.number || est.estimateNumber, est.date, JSON.stringify(est.customer), JSON.stringify(est.items), est.taxType || 'INTRA', est.total || est.totals?.total, est.status);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  app.get("/api/estimates", (req, res) => {
-    try {
-      const data = db.prepare("SELECT * FROM estimates ORDER BY createdAt DESC").all();
-      const formatted = data.map((d: any) => ({
-        ...d,
-        customer: JSON.parse(d.customerData),
-        items: JSON.parse(d.itemsData)
-      }));
-      res.json(formatted);
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  // Purchases API
-  app.post("/api/purchases", (req, res) => {
-    try {
-      const p = req.body;
-      const stmt = db.prepare(`
-        INSERT OR REPLACE INTO purchases (id, billNumber, date, vendorData, itemsData, total, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      stmt.run(p.id, p.number || p.billNumber, p.date, JSON.stringify(p.customer || p.vendor), JSON.stringify(p.items), p.total || p.totals?.total, p.status);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
-    }
-  });
-
-  app.get("/api/purchases", (req, res) => {
-    try {
-      const data = db.prepare("SELECT * FROM purchases ORDER BY createdAt DESC").all();
-      const formatted = data.map((d: any) => ({
-        ...d,
-        customer: JSON.parse(d.vendorData || d.customerData),
-        items: JSON.parse(d.itemsData)
+        customerData: JSON.parse(inv.customerData),
+        itemsData: JSON.parse(inv.itemsData)
       }));
       res.json(formatted);
     } catch (error) {
@@ -277,11 +208,22 @@ async function startServer() {
   app.post("/api/tenants", (req, res) => {
     try {
       const tenant = req.body;
+      const setupStatus = tenant.setupCompleted !== undefined ? tenant.setupCompleted : 0;
       const stmt = db.prepare(`
-        INSERT OR REPLACE INTO tenants (id, name, email, loginId, password, planId, expiryDate, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO tenants (id, name, email, loginId, password, planId, expiryDate, status, setupCompleted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(tenant.id, tenant.name, tenant.email, tenant.loginId, tenant.password, tenant.planId, tenant.expiryDate, tenant.status);
+      stmt.run(
+        tenant.id, 
+        tenant.name, 
+        tenant.email, 
+        tenant.loginId || tenant.email, 
+        tenant.password, 
+        tenant.planId, 
+        tenant.expiryDate, 
+        tenant.status,
+        setupStatus
+      );
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
@@ -292,6 +234,16 @@ async function startServer() {
     try {
       const tenants = db.prepare("SELECT * FROM tenants ORDER BY createdAt DESC").all();
       res.json(tenants);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.delete("/api/tenants/:id", (req, res) => {
+    try {
+      const { id } = req.params;
+      db.prepare("DELETE FROM tenants WHERE id = ?").run(id);
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
@@ -329,7 +281,8 @@ async function startServer() {
   app.post("/api/login", (req, res) => {
     try {
       const { loginId, password } = req.body;
-      const tenant = db.prepare("SELECT * FROM tenants WHERE loginId = ? AND password = ?").get(loginId, password);
+      // Allow login via loginId OR email
+      const tenant = db.prepare("SELECT * FROM tenants WHERE (loginId = ? OR email = ?) AND password = ?").get(loginId, loginId, password);
       
       if (tenant) {
         res.json({ success: true, tenant });
@@ -400,7 +353,8 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, "dist");
+    // Serving built files in production
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
@@ -408,7 +362,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
