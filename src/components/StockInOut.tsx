@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, ArrowDownToLine, ArrowUpFromLine, Plus, Package } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function StockInOut() {
   const [transactionType, setTransactionType] = useState('in');
@@ -14,30 +15,51 @@ export function StockInOut() {
   // Movement data
   const [movements, setMovements] = useState<any[]>([]);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('stock_movements');
-    if (saved) {
-      setMovements(JSON.parse(saved).reverse()); // Make newest first
-    } else {
-      const defaultMovements = [
-        { id: 1, date: '2023-10-25', item: 'Paracetamol 500mg', type: 'in', qty: 500, unit: 'box', batch: 'B-2023-10', expiry: '2025-10-01', notes: 'New purchase' },
-        { id: 2, date: '2023-10-24', item: 'Basmati Rice', type: 'out', qty: 50, unit: 'kg', batch: 'BR-001', expiry: '2024-06-15', notes: 'Sales Order #1024' },
-        { id: 3, date: '2023-10-23', item: 'Wireless Mouse', type: 'in', qty: 100, unit: 'pcs', batch: '-', expiry: '-', notes: 'Restock' },
-        { id: 4, date: '2023-10-22', item: 'Notebooks', type: 'out', qty: 20, unit: 'pcs', batch: '-', expiry: '-', notes: 'Office Use' },
-      ];
-      setMovements(defaultMovements);
-      localStorage.setItem('stock_movements', JSON.stringify(defaultMovements));
+  const fetchMovements = async () => {
+    try {
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+      if (!activeTenant.id) return;
+
+      const response = await fetch(`${API_URL}/api/movements`, {
+        headers: {
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setMovements(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch movements:", error);
     }
+  };
+
+  useEffect(() => {
+    fetchMovements();
   }, []);
 
-  const handleSaveMovement = () => {
+  const handleSaveMovement = async () => {
     if (!itemName || !qty || Number(qty) <= 0) {
       alert("Please enter a valid item name and quantity");
       return;
     }
 
+    const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+    const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+    if (!activeTenant.id) return;
+
+    const isolationHeaders = {
+      'Content-Type': 'application/json',
+      'x-tenant-id': activeTenant.id as string,
+      'x-company-id': activeCompany.id as string
+    };
+
     const newMovement = {
-      id: Date.now(),
+      id: Date.now().toString(),
       date,
       item: itemName,
       type: transactionType,
@@ -48,32 +70,49 @@ export function StockInOut() {
       notes: remarks || 'Manual entry'
     };
 
-    const exList = JSON.parse(localStorage.getItem('stock_movements') || '[]');
-    exList.push(newMovement);
-    localStorage.setItem('stock_movements', JSON.stringify(exList));
-    setMovements([...exList].reverse());
-    
-    // Update Item Master Stock
-    const savedItems = JSON.parse(localStorage.getItem('system_items') || '[]');
-    const itemsUpdated = savedItems.map((si: any) => {
-      if (si.name === itemName) {
-        return {
-          ...si,
-          currentStock: transactionType === 'in' ? Number(si.currentStock) + Number(qty) : Math.max(0, Number(si.currentStock) - Number(qty))
-        };
-      }
-      return si;
-    });
-    localStorage.setItem('system_items', JSON.stringify(itemsUpdated));
+    try {
+      // 1. Save movement to backend
+      const res = await fetch(`${API_URL}/api/movements`, {
+        method: 'POST',
+        headers: isolationHeaders,
+        body: JSON.stringify(newMovement)
+      });
 
-    // Reset form
-    setItemName('');
-    setQty('');
-    setBatch('');
-    setExpiry('');
-    setRemarks('');
-    
-    alert(`Stock Movement Saved:\n${transactionType === 'in' ? '+' : '-'}${qty} ${unit} of ${itemName}`);
+      if (!res.ok) throw new Error("Failed to save movement");
+
+      // 2. Update stock in item master on backend
+      const itemResponse = await fetch(`${API_URL}/api/items`, { headers: isolationHeaders });
+      if (itemResponse.ok) {
+        const savedItems = await itemResponse.json();
+        const si = savedItems.find((s: any) => s.name === itemName);
+        if (si) {
+          const newStock = transactionType === 'in' ? Number(si.currentStock) + Number(qty) : Math.max(0, Number(si.currentStock) - Number(qty));
+          
+          await fetch(`${API_URL}/api/items`, {
+            method: 'POST',
+            headers: isolationHeaders,
+            body: JSON.stringify({
+              ...si,
+              currentStock: newStock
+            })
+          });
+        }
+      }
+
+      await fetchMovements();
+      
+      // Reset form
+      setItemName('');
+      setQty('');
+      setBatch('');
+      setExpiry('');
+      setRemarks('');
+      
+      alert(`Stock Movement Saved:\n${transactionType === 'in' ? '+' : '-'}${qty} ${unit} of ${itemName}`);
+    } catch (error) {
+      console.error("Error saving movement:", error);
+      alert("Error saving movement to backend");
+    }
   };
 
   return (

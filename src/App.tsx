@@ -1,14 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Dashboard } from './components/Dashboard';
-import { InvoiceList } from './components/InvoiceList';
-import { InvoiceBuilder } from './components/InvoiceBuilder';
-import { Inventory } from './components/Inventory';
-import { CustomerList } from './components/CustomerList';
-import { UserRole, AppRoute } from './types';
+import { Sidebar } from './components/Sidebar';
+import { Topbar } from './components/Topbar';
 import { Login } from './components/Login';
-import { SuperadminPanel } from './components/SuperadminPanel';
+import { Dashboard } from './components/Dashboard';
+import { InvoiceBuilder } from './components/InvoiceBuilder';
+import { EstimateBuilder } from './components/EstimateBuilder';
+import { PurchaseBillBuilder } from './components/PurchaseBillBuilder';
+import { CreditDebitNoteBuilder } from './components/CreditDebitNoteBuilder';
+import { PartyLedger } from './components/PartyLedger';
+import { Cashbook } from './components/Cashbook';
+import { ProfitLoss } from './components/ProfitLoss';
+import { BalanceSheet } from './components/BalanceSheet';
+import { ItemMaster } from './components/ItemMaster';
+import { StockInOut } from './components/StockInOut';
+import { LowStockAlert } from './components/LowStockAlert';
+import { BatchExpiry } from './components/BatchExpiry';
+import { CustomerHistory } from './components/CustomerHistory';
+import { VendorMaster } from './components/VendorMaster';
+import { OutstandingPayments } from './components/OutstandingPayments';
+import { CreditLimit } from './components/CreditLimit';
+import { AutoReminder } from './components/AutoReminder';
+import { GSTR1Export } from './components/GSTR1Export';
+import { BackupRestore } from './components/BackupRestore';
+import { GeneralSettings } from './components/GeneralSettings';
 import { Subscription } from './components/Subscription';
+import { SuperadminPanel } from './components/SuperadminPanel';
 import { SetupWizard } from './components/SetupWizard';
+import { InvoiceList } from './components/InvoiceList';
+import { UserRole, AppRoute } from './types';
 import { API_URL } from './config';
 
 export default function App() {
@@ -19,6 +38,7 @@ export default function App() {
   const [activeTenant, setActiveTenant] = useState<any>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem('isAuthenticated') === 'true';
@@ -49,28 +69,26 @@ export default function App() {
         const tenant = JSON.parse(tenantStr);
         setActiveTenant(tenant);
         
-        // Ensure company context
+        // Session Isolation Initialization
         if (!localStorage.getItem('active_company')) {
           localStorage.setItem('active_company', JSON.stringify({ id: 'default', name: tenant.name }));
         }
 
-        // Check if setup is needed
+        // Setup Check
         if (tenant.setupCompleted === 0 || tenant.setupCompleted === '0') {
           setNeedsSetup(true);
           setActiveTab('setup');
-          if (!isAutoLogin) localStorage.setItem('activeTab', 'setup');
           return;
         } else {
           setNeedsSetup(false);
         }
 
-        // Check trial or subscription expiration
+        // Validity Check
         if (tenant.validTill) {
           const expired = new Date().toISOString().split('T')[0] > tenant.validTill;
           setIsExpired(expired);
           if (expired) {
             setActiveTab('subscription');
-            if (!isAutoLogin) localStorage.setItem('activeTab', 'subscription');
             return;
           }
         }
@@ -96,89 +114,80 @@ export default function App() {
     return <Login onLogin={handleLogin} onBackToHome={() => {}} />;
   }
 
+  const renderContent = () => {
+    if (needsSetup && activeTab !== 'setup') {
+      setActiveTab('setup');
+    }
+
+    switch (activeTab) {
+      case 'dashboard': return <Dashboard onNewInvoice={() => setActiveTab('invoice')} />;
+      case 'invoice': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="invoice" />;
+      case 'estimate': return <EstimateBuilder onCancel={() => setActiveTab('dashboard')} />;
+      case 'purchase': return <PurchaseBillBuilder onCancel={() => setActiveTab('dashboard')} />;
+      case 'credit-debit': return <CreditDebitNoteBuilder onCancel={() => setActiveTab('dashboard')} />;
+      case 'party-ledger': return <PartyLedger />;
+      case 'cashbook': return <Cashbook />;
+      case 'profit-loss': return <ProfitLoss />;
+      case 'balance-sheet': return <BalanceSheet />;
+      case 'item-master': return <ItemMaster />;
+      case 'stock-in-out': return <StockInOut />;
+      case 'low-stock-alert': return <LowStockAlert />;
+      case 'batch-expiry': return <BatchExpiry />;
+      case 'customer-history': return <CustomerHistory />;
+      case 'vendor-master': return <VendorMaster />;
+      case 'outstanding-payments': return <OutstandingPayments />;
+      case 'credit-limit': return <CreditLimit />;
+      case 'auto-reminder': return <AutoReminder />;
+      case 'gstr1-export': return <GSTR1Export />;
+      case 'backup-restore': return <BackupRestore />;
+      case 'settings': return <GeneralSettings />;
+      case 'subscription': return <Subscription tenant={activeTenant} />;
+      case 'superadmin': return <SuperadminPanel />;
+      case 'setup': return <SetupWizard tenant={activeTenant} onComplete={() => {
+        const updated = { ...activeTenant, setupCompleted: 1 };
+        setActiveTenant(updated);
+        localStorage.setItem('active_tenant', JSON.stringify(updated));
+        setNeedsSetup(false);
+        setActiveTab('dashboard');
+      }} />;
+      case 'all-invoices': return <InvoiceList onNewInvoice={() => setActiveTab('invoice')} />;
+      default: return <Dashboard onNewInvoice={() => setActiveTab('invoice')} />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 bg-slate-900 min-h-screen p-6 text-white shrink-0">
-          <div className="flex items-center gap-2 mb-8">
-            <span className="text-2xl font-bold italic tracking-tighter">iFastX</span>
-          </div>
-
-          <nav className="space-y-1">
-            {userRole === 'superadmin' ? (
-              <button 
-                onClick={() => setActiveTab('superadmin')}
-                className={`w-full text-left px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'superadmin' ? 'bg-blue-600' : 'hover:bg-white/5 text-slate-400'}`}
-              >
-                Superadmin Panel
-              </button>
-            ) : isExpired ? (
-              <button 
-                onClick={() => setActiveTab('subscription')}
-                className={`w-full text-left px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'subscription' ? 'bg-blue-600' : 'hover:bg-white/5 text-slate-400'}`}
-              >
-                Renew Subscription
-              </button>
-            ) : (
-              <>
-                <button 
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'dashboard' ? 'bg-blue-600' : 'hover:bg-white/5 text-slate-400'}`}
-                >
-                  Dashboard
-                </button>
-                <button 
-                  onClick={() => setActiveTab('invoices')}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'invoices' ? 'bg-blue-600' : 'hover:bg-white/5 text-slate-400'}`}
-                >
-                  Sales Invoices
-                </button>
-                <button 
-                  onClick={() => setActiveTab('inventory')}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all font-bold ${activeTab === 'inventory' ? 'bg-blue-600' : 'hover:bg-white/5 text-slate-400'}`}
-                >
-                  Inventory
-                </button>
-              </>
-            )}
-          </nav>
-
-          <div className="mt-auto pt-10">
-            <button 
-              onClick={handleLogout}
-              className="w-full text-left px-4 py-2 text-slate-400 hover:text-white transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-8">
-          <div className="max-w-7xl mx-auto">
-            {activeTab === 'superadmin' && <SuperadminPanel />}
-            {activeTab === 'setup' && (
-              <SetupWizard 
-                tenant={activeTenant} 
-                onComplete={() => {
-                  const updatedTenant = { ...activeTenant, setupCompleted: 1 };
-                  setActiveTenant(updatedTenant);
-                  localStorage.setItem('active_tenant', JSON.stringify(updatedTenant));
-                  setNeedsSetup(false);
-                  setActiveTab('dashboard');
-                }} 
-              />
-            )}
-            {activeTab === 'dashboard' && <Dashboard onNewInvoice={() => setActiveTab('new-invoice')} />}
-            {activeTab === 'invoices' && <InvoiceList onNewInvoice={() => setActiveTab('new-invoice')} />}
-            {activeTab === 'new-invoice' && <InvoiceBuilder onCancel={() => setActiveTab('invoices')} />}
-            {activeTab === 'inventory' && <Inventory />}
-            {activeTab === 'subscription' && <Subscription tenant={activeTenant} />}
+    <div className="min-h-screen bg-slate-50 flex overflow-hidden">
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          localStorage.setItem('activeTab', tab);
+        }} 
+        userRole={userRole}
+        onLogout={handleLogout}
+        isExpired={isExpired}
+        tenant={activeTenant}
+        isMobileOpen={isMobileOpen}
+        setIsMobileOpen={setIsMobileOpen}
+      />
+      
+      <div className="flex-1 flex flex-col min-w-0 lg:ml-64 relative">
+        <Topbar />
+        
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+          <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
+            {renderContent()}
           </div>
         </main>
+
+        {/* Mobile Toggle Button */}
+        <button 
+          onClick={() => setIsMobileOpen(true)}
+          className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-2xl flex items-center justify-center z-40 transition-transform active:scale-95"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
       </div>
     </div>
   );
 }
-

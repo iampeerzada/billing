@@ -1,6 +1,10 @@
 import React from 'react';
 import { InvoiceBuilder } from './InvoiceBuilder';
 
-export function CreditDebitNoteBuilder() {
-  return <InvoiceBuilder type="credit-debit" />;
+interface CreditDebitNoteBuilderProps {
+  onCancel?: () => void;
+}
+
+export function CreditDebitNoteBuilder({ onCancel }: CreditDebitNoteBuilderProps) {
+  return <InvoiceBuilder type="credit-debit" onCancel={onCancel} />;
 }

@@ -11,7 +11,17 @@ export function ItemMaster() {
 
   const fetchItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/items`);
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+      if (!activeTenant.id) return;
+
+      const response = await fetch(`${API_URL}/api/items`, {
+        headers: {
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setItems(data);
@@ -30,6 +40,11 @@ export function ItemMaster() {
   const handleSaveItem = async () => {
     if (!newItem.name || !newItem.price) return;
     
+    const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+    const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+    if (!activeTenant.id) return;
+    
     const itemData = {
       ...newItem,
       id: isEditing ? newItem.id : Date.now().toString(),
@@ -41,7 +56,11 @@ export function ItemMaster() {
     try {
       const response = await fetch(`${API_URL}/api/items`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        },
         body: JSON.stringify(itemData)
       });
 

@@ -17,7 +17,17 @@ export function GeneralSettings() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/settings`);
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+        if (!activeTenant.id) return;
+
+        const response = await fetch(`${API_URL}/api/settings`, {
+          headers: {
+            'x-tenant-id': activeTenant.id,
+            'x-company-id': activeCompany.id
+          }
+        });
         if (response.ok) {
           const settings = await response.json();
           setApiKey(settings.iFastXApiKey || '');
@@ -44,9 +54,18 @@ export function GeneralSettings() {
     setIsSaving(true);
     
     try {
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+      if (!activeTenant.id) return;
+
       const response = await fetch(`${API_URL}/api/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        },
         body: JSON.stringify({
           iFastXApiKey: apiKey,
           iFastXInstanceId: instanceId

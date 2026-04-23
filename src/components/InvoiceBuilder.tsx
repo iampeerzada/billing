@@ -126,9 +126,10 @@ const INVOICE_THEMES = [
 
 interface DocumentBuilderProps {
   type?: 'invoice' | 'estimate' | 'purchase' | 'credit-debit';
+  onCancel?: () => void;
 }
 
-export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
+export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderProps) {
   const [currentTheme, setCurrentTheme] = useState(INVOICE_THEMES[0]);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   
@@ -374,6 +375,24 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
       return;
     }
     
+    // Get isolation context from localStorage
+    const activeTenantStr = localStorage.getItem('active_tenant');
+    const activeCompanyStr = localStorage.getItem('active_company');
+    
+    if (!activeTenantStr) {
+      alert("Session expired. Please login again.");
+      return;
+    }
+
+    const activeTenant = JSON.parse(activeTenantStr);
+    const activeCompany = activeCompanyStr ? JSON.parse(activeCompanyStr) : { id: 'default' };
+
+    const isolationHeaders = {
+      'Content-Type': 'application/json',
+      'x-tenant-id': activeTenant.id as string,
+      'x-company-id': activeCompany.id as string
+    };
+
     const invoice = {
       id: Date.now().toString(),
       ...invoiceDetails,
@@ -394,7 +413,7 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
       // Save to backend API
       const response = await fetch(`${API_URL}/api/invoices`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: isolationHeaders,
         body: JSON.stringify(invoice)
       });
 
@@ -407,10 +426,9 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
 
       // Modify Item Master Stock if Purchase or Invoice
       if (type === 'invoice' || type === 'purchase') {
-        const itemResponse = await fetch(`${API_URL}/api/items`);
+        const itemResponse = await fetch(`${API_URL}/api/items`, { headers: isolationHeaders });
         if (itemResponse.ok) {
           const savedItems = await itemResponse.json();
-          let itemsUpdatedCount = 0;
 
           for (const item of items) {
             const si = savedItems.find((s: any) => s.name === item.name);
@@ -422,7 +440,7 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
               // 1. Log movement to backend
               await fetch(`${API_URL}/api/movements`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: isolationHeaders,
                 body: JSON.stringify({
                   itemId: si.id,
                   type: movementType,
@@ -435,20 +453,19 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
               // 2. Update stock in item master on backend
               await fetch(`${API_URL}/api/items`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: isolationHeaders,
                 body: JSON.stringify({
                   ...si,
                   currentStock: newStock
                 })
               });
-              
-              itemsUpdatedCount++;
             }
           }
         }
       }
 
       alert(labels.saveMsg);
+      if (onCancel) onCancel();
     } catch (error) {
       console.error(`Failed to save ${type}:`, error);
       alert(`Failed to save ${type}. Please try again.`);
@@ -538,6 +555,15 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
+            {onCancel && (
+              <button 
+                type="button"
+                onClick={onCancel}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+            )}
             <button 
               type="button"
               onClick={resetInvoice}

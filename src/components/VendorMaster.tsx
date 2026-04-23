@@ -10,7 +10,17 @@ export function VendorMaster() {
 
   const fetchVendors = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/vendors`);
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+      if (!activeTenant.id) return;
+
+      const response = await fetch(`${API_URL}/api/vendors`, {
+        headers: {
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setVendors(data);
@@ -29,6 +39,11 @@ export function VendorMaster() {
   const handleSave = async () => {
     if (!newVendor.name) return;
     
+    const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+    const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+    if (!activeTenant.id) return;
+    
     const vendorData = {
       ...newVendor,
       id: newVendor.id || Date.now().toString()
@@ -37,7 +52,11 @@ export function VendorMaster() {
     try {
       const response = await fetch(`${API_URL}/api/vendors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        },
         body: JSON.stringify(vendorData)
       });
 

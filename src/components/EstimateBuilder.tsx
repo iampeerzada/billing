@@ -1,6 +1,10 @@
 import React from 'react';
 import { InvoiceBuilder } from './InvoiceBuilder';
 
-export function EstimateBuilder() {
-  return <InvoiceBuilder type="estimate" />;
+interface EstimateBuilderProps {
+  onCancel?: () => void;
+}
+
+export function EstimateBuilder({ onCancel }: EstimateBuilderProps) {
+  return <InvoiceBuilder type="estimate" onCancel={onCancel} />;
 }
