@@ -1,11 +1,11 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { fileURLToPath } from "url";
 import Database from "better-sqlite3";
 import cors from "cors";
 
 // Safe database path for production VPS and local dev
+// We use process.cwd() which is the folder you run PM2 from
 const dbPath = path.join(process.cwd(), "data.db");
 const db = new Database(dbPath);
 
