@@ -154,11 +154,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "x-tenant-id", "x-company-id"]
-  }));
+  app.use(cors());
   app.use(express.json());
 
   // Isolation Debug Middleware
@@ -171,6 +167,24 @@ async function startServer() {
 
   const getTenantId = (req: express.Request) => req.headers['x-tenant-id'] as string;
   const getCompanyId = (req: express.Request) => req.headers['x-company-id'] as string;
+
+  // --- Plans API ---
+  app.get("/api/plans", (req, res) => {
+    try {
+      const plans = db.prepare("SELECT * FROM plans").all();
+      // If no plans exist, return defaults
+      if (plans.length === 0) {
+        return res.json([
+          { id: '1', name: 'Starter', price: 999, duration: 365, features: 'Basic Billing, 1 User' },
+          { id: '2', name: 'Pro', price: 2499, duration: 365, features: 'Advanced Billing, 5 Users, Inventory' },
+          { id: '3', name: 'Enterprise', price: 4999, duration: 365, features: 'Unlimited Everything, 24/7 Support' }
+        ]);
+      }
+      res.json(plans);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // --- Auth/Login ---
   app.post("/api/login", (req, res) => {

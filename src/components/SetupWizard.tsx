@@ -39,13 +39,17 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
       const tenantId = tenant.id;
       const companyId = 'default';
 
+      const commonHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-tenant-id': tenantId
+      };
+      if (companyId && companyId !== 'default') {
+        commonHeaders['x-company-id'] = companyId;
+      }
+
       await fetch(`${API_URL}/api/settings`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-          'x-company-id': companyId
-        },
+        headers: commonHeaders,
         body: JSON.stringify({
           company_profile: profile
         })
@@ -61,11 +65,7 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
 
       const res = await fetch(`${API_URL}/api/tenants`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId,
-          'x-company-id': companyId
-        },
+        headers: commonHeaders,
         body: JSON.stringify(updatedTenant)
       });
 
