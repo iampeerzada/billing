@@ -158,15 +158,13 @@ async function startServer() {
 
   // --- MANUAL ROBUST CORS MIDDLEWARE ---
   app.use((req, res, next) => {
-    // Dynamically allow the requesting origin OR just use '*' for maximum compatibility
     const origin = req.headers.origin || '*';
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, x-tenant-id, x-company-id, Accept, Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+    res.setHeader('Access-Control-Max-Age', '86400');
 
-    // Handle Preflight (CORS handshake)
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
@@ -175,16 +173,16 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Isolation Debug Middleware
-  app.use((req, res, next) => {
-    const tId = req.headers['x-tenant-id'];
-    const cId = req.headers['x-company-id'];
-    console.log(`[API] ${req.method} ${req.url} - Tenant: ${tId}, Company: ${cId}`);
+  // Isolation Debug & Header Extraction
+  app.use((req: any, res, next) => {
+    req.tenantId = req.headers['x-tenant-id'];
+    req.companyId = req.headers['x-company-id'];
+    console.log(`[API] ${req.method} ${req.url} - T:${req.tenantId} C:${req.companyId}`);
     next();
   });
 
-  const getTenantId = (req: express.Request) => req.headers['x-tenant-id'] as string;
-  const getCompanyId = (req: express.Request) => req.headers['x-company-id'] as string;
+  const getTenantId = (req: any) => req.tenantId || req.headers['x-tenant-id'];
+  const getCompanyId = (req: any) => req.companyId || req.headers['x-company-id'];
 
   // --- Plans API ---
   app.get("/api/plans", (req, res) => {
@@ -240,6 +238,16 @@ async function startServer() {
     db.prepare("INSERT OR REPLACE INTO companies (id, tenantId, name, gstin, address, phone, email, isDefault) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(co.id || Date.now().toString(), tId, co.name, co.gstin, co.address, co.phone, co.email, co.isDefault || 0);
     res.json({ success: true });
+  });
+
+  app.delete("/api/companies/:id", (req, res) => {
+    const tId = getTenantId(req);
+    const { id } = req.params;
+    if (!tId) return res.status(400).json({ error: "Missing Tenant ID" });
+    try {
+      db.prepare("DELETE FROM companies WHERE id = ? AND tenantId = ?").run(id, tId);
+      res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
   // --- Generic Isolated Handler Creator ---

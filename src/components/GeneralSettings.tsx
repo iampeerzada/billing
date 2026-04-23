@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Key, Server, MessageSquare, User, Lock } from 'lucide-react';
+import { Save, Key, Server, MessageSquare, User, Lock, Building2, Shield } from 'lucide-react';
 import { API_URL } from '../config';
+import { CompanyManager } from './CompanyManager';
 
 export function GeneralSettings() {
+  const [activeTab, setActiveTab] = useState('profile');
   const [apiKey, setApiKey] = useState('');
   const [instanceId, setInstanceId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -73,16 +75,16 @@ export function GeneralSettings() {
       });
 
       if (response.ok) {
-        alert('iFastX API Settings saved successfully to backend!');
+        alert('iFastX API Settings saved successfully!');
       }
     } catch (error) {
-      alert('Failed to save settings to backend');
+      alert('Failed to save settings');
     } finally {
       setIsSaving(false);
     }
   };
   
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     setIsProfileSaving(true);
     const activeTenantStr = localStorage.getItem('active_tenant');
     if (activeTenantStr) {
@@ -95,167 +97,152 @@ export function GeneralSettings() {
         password: profilePassword
       };
       
-      // Update active tenant
-      localStorage.setItem('active_tenant', JSON.stringify(updatedTenant));
-      
-      // Update in system_admins list
-      const adminsStr = localStorage.getItem('system_admins');
-      if (adminsStr) {
-        const admins = JSON.parse(adminsStr);
-        const updatedAdmins = admins.map((a: any) => a.id === updatedTenant.id ? updatedTenant : a);
-        localStorage.setItem('system_admins', JSON.stringify(updatedAdmins));
+      try {
+        const res = await fetch(`${API_URL}/api/tenants`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-id': activeTenant.id
+          },
+          body: JSON.stringify(updatedTenant)
+        });
+        
+        if (res.ok) {
+          localStorage.setItem('active_tenant', JSON.stringify(updatedTenant));
+          alert('Profile updated successfully!');
+        }
+      } catch (e) {
+        alert('Failed to update profile on server');
       }
     }
-    
-    setTimeout(() => {
-      setIsProfileSaving(false);
-      alert('Profile credentials updated successfully!');
-    }, 600);
+    setIsProfileSaving(false);
   };
 
+  const tabs = [
+    { id: 'profile', label: 'My Account', icon: User },
+    { id: 'companies', label: 'Manage Businesses', icon: Building2 },
+    { id: 'integration', label: 'WhatsApp API', icon: MessageSquare },
+  ];
+
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 border-b pb-2 mb-2 border-slate-200">General Settings</h1>
-        <p className="text-slate-500">Configure your application settings and third-party integrations.</p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 italic">Settings</h2>
+          <p className="text-slate-500 font-medium">Configure your personal and business environment.</p>
+        </div>
       </div>
 
-      <div className="space-y-6">
-        {/* Profile Settings */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
-              <User size={20} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Tenant Profile</h2>
-              <p className="text-sm text-slate-500">Manage your credentials and login password.</p>
-            </div>
-          </div>
-          
-          <div className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Company / Name</label>
-                <input
-                  type="text"
+      <div className="flex flex-wrap gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              activeTab === tab.id 
+                ? 'bg-white text-blue-600 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <tab.icon size={18} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-xl shadow-blue-900/5 p-8">
+        {activeTab === 'profile' && (
+          <div className="max-w-2xl space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Full Name</label>
+                <input 
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
                   value={profileName}
-                  onChange={(e) => setProfileName(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setProfileName(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                <input
-                  type="email"
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Email Address</label>
+                <input 
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
                   value={profileEmail}
-                  onChange={(e) => setProfileEmail(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setProfileEmail(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Login ID</label>
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Login ID</label>
+                <input 
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
                   value={profileLoginId}
-                  onChange={(e) => setProfileLoginId(e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setProfileLoginId(e.target.value)}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
                     type="password"
                     value={profilePassword}
                     onChange={(e) => setProfilePassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
               </div>
             </div>
-
-            <div className="flex justify-end pt-4">
-              <button 
-                onClick={handleSaveProfile}
-                disabled={isProfileSaving}
-                className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium transition-colors shadow-sm disabled:opacity-50"
-              >
-                {isProfileSaving ? (
-                  <span className="animate-pulse">Saving...</span>
-                ) : (
-                  <>
-                    <Save size={18} />
-                    Update Profile
-                  </>
-                )}
-              </button>
-            </div>
+            <button 
+              onClick={handleSaveProfile}
+              disabled={isProfileSaving}
+              className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+            >
+              <Save size={20} /> {isProfileSaving ? 'Saving...' : 'Save Profile Changes'}
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* iFastX API Settings */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-              <MessageSquare size={20} />
+        {activeTab === 'companies' && <CompanyManager />}
+
+        {activeTab === 'integration' && (
+          <div className="max-w-2xl space-y-6">
+            <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 text-sm font-medium">
+              Automate your invoice delivery via WhatsApp Business API using iFastX.
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">iFastX WhatsApp API Integration</h2>
-              <p className="text-sm text-slate-500">Automate your invoice and reminder delivery via WhatsApp.</p>
-            </div>
-          </div>
-          
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">API Key</label>
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <Key size={16} /> API Key
+                </label>
+                <input 
                   type="password"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
                   value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="e.g. sk_live_xxxxxxxxxx"
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder="sk_live_..."
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Your private API key from iFastX dashboard.</p>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Instance ID</label>
-              <div className="relative">
-                <Server className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                  type="text"
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <Server size={16} /> Instance ID
+                </label>
+                <input 
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20"
                   value={instanceId}
-                  onChange={(e) => setInstanceId(e.target.value)}
-                  placeholder="e.g. inst_xxxxxxxxxxxx"
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  onChange={e => setInstanceId(e.target.value)}
+                  placeholder="inst_..."
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-1">The active WhatsApp instance ID to send messages from.</p>
             </div>
 
-            <div className="flex justify-end pt-4">
-              <button 
-                onClick={handleSaveAPI}
-                disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <span className="animate-pulse">Saving...</span>
-                ) : (
-                  <>
-                    <Save size={18} />
-                    Save Configuration
-                  </>
-                )}
-              </button>
-            </div>
+            <button 
+              onClick={handleSaveAPI}
+              disabled={isSaving}
+              className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+            >
+              <Save size={20} /> {isSaving ? 'Saving...' : 'Save WhatsApp Configuration'}
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

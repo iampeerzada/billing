@@ -20,6 +20,9 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   const [isTaxOpen, setIsTaxOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  const activeCompanyStr = localStorage.getItem('active_company');
+  const activeCompany = activeCompanyStr ? JSON.parse(activeCompanyStr) : null;
+
   const billingItems = [
     { id: 'invoice', icon: FileText, label: 'Invoice Builder' },
     { id: 'estimate', icon: FileText, label: 'Estimate / Quotation' },
@@ -94,6 +97,18 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
             <X size={24} />
           </button>
         </div>
+
+        {activeCompany && (
+          <div className="mx-4 mt-4 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 group hover:border-blue-500/50 transition-colors cursor-pointer" onClick={() => setActiveTab('settings')}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <Building2 size={16} className="text-blue-500 shrink-0" />
+                <span className="text-xs font-black text-white truncate italic uppercase tracking-wider">{activeCompany.name}</span>
+              </div>
+              <Settings size={12} className="text-slate-500 group-hover:text-blue-400 transition-colors" />
+            </div>
+          </div>
+        )}
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
         {isExpired && (

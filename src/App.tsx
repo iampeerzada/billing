@@ -147,6 +147,12 @@ export default function App() {
         const updated = { ...activeTenant, setupCompleted: 1 };
         setActiveTenant(updated);
         localStorage.setItem('active_tenant', JSON.stringify(updated));
+        
+        // Initialize default company for new setup
+        if (!localStorage.getItem('active_company')) {
+          localStorage.setItem('active_company', JSON.stringify({ id: 'default', name: updated.name + ' Default' }));
+        }
+
         setNeedsSetup(false);
         setActiveTab('dashboard');
       }} />;
