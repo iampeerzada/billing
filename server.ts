@@ -154,11 +154,24 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 6000;
 
+  // Extremely Permissive CORS for Multi-Environment setup
   app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow all origins
+      callback(null, true);
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-company-id']
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'x-tenant-id', 
+      'x-company-id'
+    ],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   }));
+  
   app.use(express.json());
 
   // Isolation Debug Middleware
@@ -230,6 +243,7 @@ async function startServer() {
 
   // --- Generic Isolated Handler Creator ---
   const createIsolatedRoutes = (pathBase: string, table: string, jsonFields: string[] = []) => {
+    // GET List
     app.get(`/api/${pathBase}`, (req, res) => {
       const tId = getTenantId(req), cId = getCompanyId(req);
       if (!tId || !cId) return res.status(400).json({ error: "Missing Isolation Headers" });
@@ -244,6 +258,7 @@ async function startServer() {
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // POST (Add/Update)
     app.post(`/api/${pathBase}`, (req, res) => {
       const tId = getTenantId(req), cId = getCompanyId(req);
       const data = req.body;
@@ -257,6 +272,17 @@ async function startServer() {
 
       try {
         db.prepare(`INSERT OR REPLACE INTO ${table} (${columns}) VALUES (${keys.map(() => '?').join(', ')}, ?, ?)`).run(...values);
+        res.json({ success: true });
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // DELETE
+    app.delete(`/api/${pathBase}/:id`, (req, res) => {
+      const tId = getTenantId(req), cId = getCompanyId(req);
+      const { id } = req.params;
+      if (!tId || !cId) return res.status(400).json({ error: "Missing Isolation Headers" });
+      try {
+        db.prepare(`DELETE FROM ${table} WHERE id = ? AND tenantId = ? AND companyId = ?`).run(id, tId, cId);
         res.json({ success: true });
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
