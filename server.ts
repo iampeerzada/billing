@@ -9,7 +9,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Initialize SQLite database
-const db = new Database("data.db");
+// In production bundle, we want to ensure the db is in the root directory relative to the server
+const dbPath = process.env.NODE_ENV === 'production' 
+  ? path.join(process.cwd(), "data.db")
+  : path.join(__dirname, "data.db");
+
+const db = new Database(dbPath);
 
 // Create tables
 db.exec(`

@@ -33,9 +33,11 @@ This guide explains how to host your frontend on your professional domain (`ifas
    export const API_URL = 'https://api.ifastx.in'; // This MUST match your subdomain in NPM.
    ```
 2. **Build**: Run `npm run build` on your local machine.
+   - **Note**: Ensure `vite.config.ts` has `base: '/billing/'` (already configured).
 3. **Upload**: 
    - Open DirectAdmin File Manager.
    - Navigate to `public_html/billing/`.
+   - **Delete old files first** to avoid confusion.
    - Upload all files from the `dist/` folder of this project to that directory.
    - **Note**: You do *not* need to upload `server.ts` or `node_modules` to DirectAdmin. Only the static files (index.html, assets, etc.).
 
