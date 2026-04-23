@@ -152,9 +152,13 @@ db.exec(`
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 6000;
+  const PORT = 6000;
 
-  app.use(cors());
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-company-id']
+  }));
   app.use(express.json());
 
   // Isolation Debug Middleware
