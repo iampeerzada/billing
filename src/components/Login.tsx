@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, User, FileText, Globe, IndianRupee, MessageCircle, BarChart3, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Shield, Lock, User, FileText, Globe, IndianRupee, MessageCircle, BarChart3, ChevronRight, CheckCircle2, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { API_URL } from '../config';
 

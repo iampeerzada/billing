@@ -283,4 +283,3 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
     </div>
   );
 }
-创新创业
