@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Save, Download, Calculator, RefreshCw, Printer, ChevronDown, ChevronUp, Palette, Upload, Image, FileDown, MessageCircle, Mail } from 'lucide-react';
 import { InvoiceItem, Customer, BusinessProfile } from '../types';
 import { numberToWords } from '../utils/currencyUtils';
+import { API_URL } from '../config';
 import { sendWhatsAppMessage } from '../services/whatsappService';
 import html2pdf from 'html2pdf.js';
 
@@ -391,7 +392,7 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
 
     try {
       // Save to backend API
-      const response = await fetch('/api/invoices', {
+      const response = await fetch(`${API_URL}/api/invoices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoice)
@@ -406,7 +407,7 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
 
       // Modify Item Master Stock if Purchase or Invoice
       if (type === 'invoice' || type === 'purchase') {
-        const itemResponse = await fetch('/api/items');
+        const itemResponse = await fetch(`${API_URL}/api/items`);
         if (itemResponse.ok) {
           const savedItems = await itemResponse.json();
           let itemsUpdatedCount = 0;
@@ -419,7 +420,7 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
               const newStock = movementType === 'IN' ? Number(si.currentStock) + qty : Math.max(0, Number(si.currentStock) - qty);
 
               // 1. Log movement to backend
-              await fetch('/api/movements', {
+              await fetch(`${API_URL}/api/movements`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -432,7 +433,7 @@ export function InvoiceBuilder({ type = 'invoice' }: DocumentBuilderProps) {
               });
 
               // 2. Update stock in item master on backend
-              await fetch('/api/items', {
+              await fetch(`${API_URL}/api/items`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

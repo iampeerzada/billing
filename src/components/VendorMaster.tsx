@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Building2 } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function VendorMaster() {
   const [vendors, setVendors] = useState<any[]>([]);
@@ -9,7 +10,7 @@ export function VendorMaster() {
 
   const fetchVendors = async () => {
     try {
-      const response = await fetch('/api/vendors');
+      const response = await fetch(`${API_URL}/api/vendors`);
       if (response.ok) {
         const data = await response.json();
         setVendors(data);
@@ -34,7 +35,7 @@ export function VendorMaster() {
     };
 
     try {
-      const response = await fetch('/api/vendors', {
+      const response = await fetch(`${API_URL}/api/vendors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(vendorData)

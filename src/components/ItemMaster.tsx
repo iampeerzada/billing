@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Box, Edit2 } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function ItemMaster() {
   const [items, setItems] = useState<any[]>([]);
@@ -10,7 +11,7 @@ export function ItemMaster() {
 
   const fetchItems = async () => {
     try {
-      const response = await fetch('/api/items');
+      const response = await fetch(`${API_URL}/api/items`);
       if (response.ok) {
         const data = await response.json();
         setItems(data);
@@ -38,7 +39,7 @@ export function ItemMaster() {
     };
 
     try {
-      const response = await fetch('/api/items', {
+      const response = await fetch(`${API_URL}/api/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(itemData)

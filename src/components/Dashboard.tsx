@@ -4,6 +4,7 @@ import {
   MessageCircle, Globe, User, Package, IndianRupee, Users
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { API_URL } from '../config';
 
 interface DashboardProps {
   setActiveTab?: (tab: string) => void;
@@ -16,7 +17,7 @@ export function Dashboard({ setActiveTab }: DashboardProps) {
   React.useEffect(() => {
     const fetchInvoices = async () => {
       try {
-        const response = await fetch('/api/invoices');
+        const response = await fetch(`${API_URL}/api/invoices`);
         if (response.ok) {
           const data = await response.json();
           setInvoices(data);

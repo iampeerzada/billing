@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Key, Server, MessageSquare, User, Lock } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function GeneralSettings() {
   const [apiKey, setApiKey] = useState('');
@@ -16,7 +17,7 @@ export function GeneralSettings() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await fetch('/api/settings');
+        const response = await fetch(`${API_URL}/api/settings`);
         if (response.ok) {
           const settings = await response.json();
           setApiKey(settings.iFastXApiKey || '');
@@ -43,7 +44,7 @@ export function GeneralSettings() {
     setIsSaving(true);
     
     try {
-      const response = await fetch('/api/settings', {
+      const response = await fetch(`${API_URL}/api/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,136 +1,59 @@
-# Full Deployment Guide for iFastX GST Billing
-This guide will walk you through deploying your application to your own VPS (Ubuntu/Linux) at `https://ifastx.in/billing`.
+# Professional Split Deployment (DirectAdmin + Home VPS)
 
-## Prerequisites
-Before you begin, ensure your VPS has the following installed:
-1. **Node.js (v18 or higher)**
-2. **NPM** (Node Package Manager)
-3. **Nginx** (To act as a reverse proxy for your domain)
-4. **Git** (To transfer your code)
+This guide explains how to host your frontend on your professional domain (`ifastx.in` via DirectAdmin) while keeping your data private on your own local VPS.
 
----
-
-## Step 1: Prepare Your VPS
-Login to your VPS via SSH:
-```bash
-ssh root@your_vps_ip
-```
-
-Update your system and install necessary tools:
-```bash
-sudo apt update
-sudo apt install nodejs npm nginx git -y
-```
-
-Install **PM2**, a process manager that keeps your app running 24/7:
-```bash
-sudo npm install -g pm2
-```
+## Architecture Overview
+- **Domain**: `ifastx.in` (Root)
+- **Frontend**: Hosted on **DirectAdmin** (Handles `https://ifastx.in/billing`)
+- **Backend API**: Hosted on your **Local VPS** (Handles `https://billing-api.ifastx.in`)
+- **SSL/Routing**: Managed by **Nginx Proxy Manager (NPM)** on your local server.
 
 ---
 
-## Step 2: Get the Code
-1. Export your code from AI Studio (ZIP or GitHub).
-2. On your VPS, go to the directory where you want to host the app:
-```bash
-mkdir -p /var/www/ifastx
-cd /var/www/ifastx
-```
-3. Upload your files here. If using Git:
-```bash
-git clone <your-repo-link> .
-```
+## Step 1: Backend Setup (Local VPS)
+1. **DNS Config**: Log into your domain registrar (e.g., GoDaddy/Namecheap) and create an **A Record** for `api.ifastx.in` pointing to your **Home Public IP**.
+2. **Mikrotik**: Ensure ports **80** and **443** are forwarded to your **Nginx Proxy Manager VM**.
+3. **Nginx Proxy Manager (NPM)**:
+   - Add Proxy Host: `api.ifastx.in`
+   - Forward to your Billing VPS IP on Port **6000**.
+   - SSL Tab: Request a certificate for `api.ifastx.in`.
+4. **Environment**: In your Billing VPS `.env`, set:
+   ```env
+   GEMINI_API_KEY=your_key
+   NODE_ENV=production
+   PORT=6000
+   ```
+5. **Start**: `pm2 start dist/server.cjs --name "billing-api"`
 
 ---
 
-## Step 3: Install and Build
-Install the project dependencies:
-```bash
-npm install
-```
-
-Build the application for production:
-```bash
-npm run build
-```
-*This creates a `dist` folder with your frontend and a `dist/server.cjs` file for your backend.*
-
----
-
-## Step 4: Configure Environment & PORT
-1. Open a new Nginx configuration file:
-```bash
-sudo nano /etc/nginx/sites-available/ifastx
-```
-
-**FOR YOUR SETUP (Proxmox/Mikrotik):**
-Since port 3000 is in use, we use port **6000**.
-In your `.env` file on the VPS, add:
-```env
-PORT=6000
-NODE_ENV=production
-```
-
-Also, update `server.ts` on your VPS to use this environment variable:
-`const PORT = process.env.PORT || 6000;`
+## Step 2: Frontend Setup (DirectAdmin)
+1. **Config Check**: Open `src/config.ts` in this project and verify:
+   ```typescript
+   export const API_URL = 'https://api.ifastx.in'; // This MUST match your subdomain in NPM.
+   ```
+2. **Build**: Run `npm run build` on your local machine.
+3. **Upload**: 
+   - Open DirectAdmin File Manager.
+   - Navigate to `public_html/billing/`.
+   - Upload all files from the `dist/` folder of this project to that directory.
+   - **Note**: You do *not* need to upload `server.ts` or `node_modules` to DirectAdmin. Only the static files (index.html, assets, etc.).
 
 ---
 
-## Step 5: Start the App with PM2
-Start your backend server:
-```bash
-PORT=6000 pm2 start dist/server.cjs --name "ifastx-billing"
-```
+## Step 3: Verify the Bridge
+1. Go to `https://ifastx.in/billing` in your browser.
+2. The website loads from DirectAdmin.
+3. When you save an invoice, the data travels across the internet to `api.ifastx.in`, which your home router passes to your Local VPS.
+4. Data is saved in the SQLite `data.db` on your VPS.
 
 ---
 
-## Step 6: Configure Nginx for https://ifastx.in/billing
-Paste the following configuration:
-```nginx
-server {
-    listen 80;
-    server_name ifastx.in;
+### Why this is the best setup:
+- **Professional Look**: Users see your main domain `ifastx.in`.
+- **Data Privacy**: Your financial data never touches the DirectAdmin shared server; it stays on your physical hardware at home.
+- **Speed**: Static files load fast from the web host, while the database stays under your full control.
 
-    location /billing/ {
-        proxy_pass http://localhost:6000/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        
-        # Important for sub-path routing
-        rewrite ^/billing/(.*)$ /$1 break;
-    }
-}
-```
-
-## Step 7: Mikrotik / Proxmox Port Forwarding
-In your Mikrotik router (NAT rules):
-1. **Chain**: `dstnat`
-2. **Protocol**: `6 (tcp)`
-3. **Dst. Port**: `80, 443`
-4. **Action**: `dst-nat`
-5. **To Addresses**: `Your_VPS_IP`
-6. **To Ports**: `80, 443` (Nginx will handle the internal 6000 routing)
-
-
-3. Enable the site and restart Nginx:
-```bash
-sudo ln -s /etc/nginx/sites-available/ifastx /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
-```
-
----
-
-## Step 7: Secure with SSL (HTTPS)
-Use Certbot to get a free SSL certificate:
-```bash
-sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d ifastx.in
-```
-Follow the prompts to enable HTTPS.
 
 ---
 
