@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Server, Shield, Edit, Trash2, CheckCircle, Search, Settings, Save, AlertCircle, RefreshCw, X, Plus } from 'lucide-react';
+import { API_URL } from '../config';
 
 interface Plan {
   id: string;
@@ -44,6 +45,7 @@ export function SuperadminPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingAdmin, setEditingAdmin] = useState<AdminProfile | null>(null);
   const [isAddingTenant, setIsAddingTenant] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [newTenant, setNewTenant] = useState({
     name: '',
     email: '',
@@ -53,50 +55,65 @@ export function SuperadminPanel() {
     planId: '1'
   });
 
-  useEffect(() => {
-    // Load data from local storage or use defaults
-    const storedPlans = localStorage.getItem('system_plans');
-    const storedAdmins = localStorage.getItem('system_admins');
-
-    if (storedPlans) {
-      let parsedPlans = JSON.parse(storedPlans);
-      // Migration: convert old 'price: number' to new 'prices' object structure
-      if (parsedPlans.length > 0 && typeof parsedPlans[0].price === 'number') {
-        parsedPlans = parsedPlans.map((p: any) => ({
-          ...p,
-          prices: {
-            monthly: Math.round(p.price / 12),
-            quarterly: Math.round(p.price / 4),
-            halfYearly: Math.round(p.price / 2),
-            yearly: p.price
-          }
-        }));
-        localStorage.setItem('system_plans', JSON.stringify(parsedPlans));
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const [pRes, aRes] = await Promise.all([
+        fetch(`${API_URL}/api/plans`),
+        fetch(`${API_URL}/api/tenants`)
+      ]);
+      
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setPlans(pData.length > 0 ? pData : DEFAULT_PLANS);
       }
-      setPlans(parsedPlans);
-    } else {
-      setPlans(DEFAULT_PLANS);
-      localStorage.setItem('system_plans', JSON.stringify(DEFAULT_PLANS));
+      if (aRes.ok) {
+        const aData = await aRes.json();
+        setAdmins(aData);
+      }
+    } catch (error) {
+      console.error("Failed to fetch server data:", error);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (storedAdmins) setAdmins(JSON.parse(storedAdmins));
-    else {
-      setAdmins(MOCK_ADMINS);
-      localStorage.setItem('system_admins', JSON.stringify(MOCK_ADMINS));
-    }
-  }, []);
-
-  const handleToggleAdminStatus = (id: string) => {
-    const updated = admins.map(admin => 
-      admin.id === id ? { ...admin, status: admin.status === 'Active' ? 'Blocked' as const : 'Active' as const } : admin
-    );
-    setAdmins(updated);
-    localStorage.setItem('system_admins', JSON.stringify(updated));
   };
 
-  const savePlans = () => {
-    localStorage.setItem('system_plans', JSON.stringify(plans));
-    alert('Subscription plans updated successfully across the platform.');
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleToggleAdminStatus = async (id: string) => {
+    const admin = admins.find(a => a.id === id);
+    if (!admin) return;
+
+    const updated = { ...admin, status: admin.status === 'Active' ? 'Blocked' as const : 'Active' as const };
+    
+    try {
+      const response = await fetch(`${API_URL}/api/tenants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (response.ok) fetchData();
+    } catch (error) {
+      console.error("Failed to update status:", error);
+    }
+  };
+
+  const savePlans = async () => {
+    try {
+      for (const plan of plans) {
+        await fetch(`${API_URL}/api/plans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(plan)
+        });
+      }
+      alert('Subscription plans updated successfully across the platform.');
+      fetchData();
+    } catch (error) {
+      console.error("Failed to save plans:", error);
+    }
   };
 
   const getPlanName = (planId: string) => plans.find(p => p.id === planId)?.name || 'Unknown Plan';
@@ -110,7 +127,7 @@ export function SuperadminPanel() {
     }
   };
 
-  const handleAddTenant = () => {
+  const handleAddTenant = async () => {
     if (!newTenant.name || !newTenant.email || !newTenant.loginId || !newTenant.password) {
       alert("Please fill all required fields: Name, Email, Login ID, and Password.");
       return;
@@ -129,16 +146,24 @@ export function SuperadminPanel() {
       validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0] // 1 year default
     };
 
-    const updated = [...admins, tenant];
-    setAdmins(updated);
-    localStorage.setItem('system_admins', JSON.stringify(updated));
-    
-    alert(`Success! Tenant profile created for ${tenant.name}.\n\nThe website profile setup configuration and login credentials have been sent to ${tenant.email}.\nLink: https://ifastx.in/billing/setup`);
-    
-    setIsAddingTenant(false);
-    setNewTenant({
-      name: '', email: '', phone: '', loginId: '', password: '', planId: '1'
-    });
+    try {
+      const response = await fetch(`${API_URL}/api/tenants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tenant)
+      });
+
+      if (response.ok) {
+        fetchData();
+        alert(`Success! Tenant profile created for ${tenant.name}.\n\nThe website profile setup configuration and login credentials have been sent to ${tenant.email}.\nLink: https://ifastx.in/billing/setup`);
+        setIsAddingTenant(false);
+        setNewTenant({
+          name: '', email: '', phone: '', loginId: '', password: '', planId: '1'
+        });
+      }
+    } catch (error) {
+      console.error("Failed to add tenant:", error);
+    }
   };
 
   const filteredAdmins = admins.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.email.toLowerCase().includes(searchQuery.toLowerCase()));

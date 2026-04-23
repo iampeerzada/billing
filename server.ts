@@ -87,6 +87,31 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS tenants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    loginId TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    planId TEXT,
+    expiryDate TEXT,
+    status TEXT DEFAULT 'Active',
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS plans (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    duration INTEGER, -- days
+    features TEXT, -- JSON array
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Initial Default Admin Tenant
+  INSERT OR IGNORE INTO tenants (id, name, email, loginId, password, status) 
+  VALUES ('admin', 'Main Admin', 'admin@ifastx.in', 'admin', 'admin123', 'Active');
 `);
 
 async function startServer() {
@@ -243,6 +268,74 @@ async function startServer() {
     try {
       const vendors = db.prepare("SELECT * FROM vendors ORDER BY name ASC").all();
       res.json(vendors);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Tenants API
+  app.post("/api/tenants", (req, res) => {
+    try {
+      const tenant = req.body;
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO tenants (id, name, email, loginId, password, planId, expiryDate, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(tenant.id, tenant.name, tenant.email, tenant.loginId, tenant.password, tenant.planId, tenant.expiryDate, tenant.status);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/tenants", (req, res) => {
+    try {
+      const tenants = db.prepare("SELECT * FROM tenants ORDER BY createdAt DESC").all();
+      res.json(tenants);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Plans API
+  app.post("/api/plans", (req, res) => {
+    try {
+      const plan = req.body;
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO plans (id, name, price, duration, features)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      stmt.run(plan.id, plan.name, plan.price, plan.duration, JSON.stringify(plan.features));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/plans", (req, res) => {
+    try {
+      const plans = db.prepare("SELECT * FROM plans ORDER BY price ASC").all();
+      const formatted = plans.map(p => ({
+        ...p,
+        features: JSON.parse(p.features || '[]')
+      }));
+      res.json(formatted);
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Login API
+  app.post("/api/login", (req, res) => {
+    try {
+      const { loginId, password } = req.body;
+      const tenant = db.prepare("SELECT * FROM tenants WHERE loginId = ? AND password = ?").get(loginId, password);
+      
+      if (tenant) {
+        res.json({ success: true, tenant });
+      } else {
+        res.status(401).json({ success: false, message: "Invalid credentials" });
+      }
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }

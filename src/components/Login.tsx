@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Lock, User, FileText, Globe, IndianRupee, MessageCircle, BarChart3, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { API_URL } from '../config';
 
 interface LoginProps {
   onLogin: (role: 'superadmin' | 'admin') => void;
@@ -45,7 +46,7 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
