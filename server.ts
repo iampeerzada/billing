@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import Database from "better-sqlite3";
-import cors from "cors";
 
 const dbPath = path.join(process.cwd(), "data.db");
 const db = new Database(dbPath);
@@ -152,19 +151,29 @@ db.exec(`
 
 async function startServer() {
   const app = express();
-  // Use environment port or default to 3000 (AI Studio default)
-  // For your VPS, set the PORT environment variable to 6000
+  // Use environment port or default to 6000 (User priority)
+  // For AI Studio, it will fallback to process.env.PORT which is usually 3000
   const PORT = Number(process.env.PORT) || 6000;
 
-  // --- MANUAL ROBUST CORS MIDDLEWARE ---
+  // --- UNIVERSAL NUCLEAR CORS POLICY ---
+  // This must be the VERY FIRST middleware to catch all preflights
   app.use((req, res, next) => {
     const origin = req.headers.origin || '*';
+    
+    // Allow all origins
     res.setHeader('Access-Control-Allow-Origin', origin);
+    // Allow all methods
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, x-tenant-id, x-company-id, Accept, Origin');
+    // Allow ALL custom headers - listing them explicitly AND using * for max compatibility
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant-id, x-company-id, *');
+    // Allow credentials if needed
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    // Cache preflight for 24 hours
     res.setHeader('Access-Control-Max-Age', '86400');
+    // Debug header to confirm Node is handling the CORS
+    res.setHeader('X-Backend-CORS', 'Node-Express-Applied');
 
+    // Handle preflight requests immediately
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
