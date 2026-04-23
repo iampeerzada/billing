@@ -152,7 +152,7 @@ db.exec(`
 
 async function startServer() {
   const app = express();
-  const PORT = 6000;
+  const PORT = Number(process.env.PORT) || 6000;
 
   app.use(cors({
     origin: '*',

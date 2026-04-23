@@ -35,18 +35,26 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
   const handleFinish = async () => {
     setIsLoading(true);
     try {
-      // 1. Save Settings (Company Profile)
       const tenantId = tenant.id;
-      const companyId = 'default';
-
-      const commonHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-tenant-id': tenantId
-      };
-      if (companyId && companyId !== 'default') {
-        commonHeaders['x-company-id'] = companyId;
+      
+      // 1. Fetch proper company ID first (created during login)
+      const companiesRes = await fetch(`${API_URL}/api/companies`, {
+        headers: { 'x-tenant-id': tenantId }
+      });
+      const companies = await companiesRes.json();
+      const activeCompany = companies.find((c: any) => c.isDefault === 1) || companies[0];
+      
+      if (!activeCompany) {
+        throw new Error("No company found for tenant. Please relative login.");
       }
 
+      const commonHeaders = {
+        'Content-Type': 'application/json',
+        'x-tenant-id': tenantId,
+        'x-company-id': activeCompany.id
+      };
+
+      // 2. Save Settings (Company Profile)
       await fetch(`${API_URL}/api/settings`, {
         method: 'POST',
         headers: commonHeaders,
@@ -55,7 +63,7 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
         })
       });
 
-      // 2. Update Tenant Password & Setup Status
+      // 3. Update Tenant Password & Setup Status
       const updatedTenant = {
         ...tenant,
         loginId: auth.loginId,
