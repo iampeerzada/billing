@@ -42,6 +42,36 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) return;
+
+    try {
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+      if (!activeTenant.id) {
+        setError('Authorization failed. Please login again.');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/invoices/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        }
+      });
+
+      if (res.ok) {
+        setInvoices(invoices.filter(inv => inv.id !== id));
+      } else {
+        setError('Failed to delete invoice');
+      }
+    } catch (err) {
+      setError('Connection error during deletion');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -154,7 +184,11 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
                         <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Download PDF">
                           <Download size={18} />
                         </button>
-                        <button className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Delete record">
+                        <button 
+                          onClick={() => handleDelete(inv.id)}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" 
+                          title="Delete record"
+                        >
                           <Trash2 size={18} />
                         </button>
                       </div>

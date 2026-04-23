@@ -59,8 +59,12 @@ export function SuperadminPanel() {
     try {
       setIsLoading(true);
       const [pRes, aRes] = await Promise.all([
-        fetch(`${API_URL}/api/plans`),
-        fetch(`${API_URL}/api/tenants`)
+        fetch(`${API_URL}/api/plans`, {
+          headers: { 'x-tenant-id': 'system', 'x-company-id': 'system' }
+        }),
+        fetch(`${API_URL}/api/tenants`, {
+          headers: { 'x-tenant-id': 'system', 'x-company-id': 'system' }
+        })
       ]);
       
       if (pRes.ok) {
@@ -91,7 +95,11 @@ export function SuperadminPanel() {
     try {
       const response = await fetch(`${API_URL}/api/tenants`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': 'system',
+          'x-company-id': 'system'
+        },
         body: JSON.stringify(updated)
       });
       if (response.ok) fetchData();
@@ -105,7 +113,11 @@ export function SuperadminPanel() {
       for (const plan of plans) {
         await fetch(`${API_URL}/api/plans`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-tenant-id': 'system',
+            'x-company-id': 'system'
+          },
           body: JSON.stringify(plan)
         });
       }

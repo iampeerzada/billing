@@ -120,7 +120,7 @@ export default function App() {
     }
 
     switch (activeTab) {
-      case 'dashboard': return <Dashboard onNewInvoice={() => setActiveTab('invoice')} />;
+      case 'dashboard': return <Dashboard setActiveTab={setActiveTab} />;
       case 'invoice': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="invoice" />;
       case 'estimate': return <EstimateBuilder onCancel={() => setActiveTab('dashboard')} />;
       case 'purchase': return <PurchaseBillBuilder onCancel={() => setActiveTab('dashboard')} />;
@@ -151,7 +151,7 @@ export default function App() {
         setActiveTab('dashboard');
       }} />;
       case 'all-invoices': return <InvoiceList onNewInvoice={() => setActiveTab('invoice')} />;
-      default: return <Dashboard onNewInvoice={() => setActiveTab('invoice')} />;
+      default: return <Dashboard setActiveTab={setActiveTab} />;
     }
   };
 

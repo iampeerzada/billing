@@ -152,10 +152,22 @@ db.exec(`
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 6000;
+  const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(cors());
+  app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-tenant-id", "x-company-id"]
+  }));
   app.use(express.json());
+
+  // Isolation Debug Middleware
+  app.use((req, res, next) => {
+    const tId = req.headers['x-tenant-id'];
+    const cId = req.headers['x-company-id'];
+    console.log(`[API] ${req.method} ${req.url} - Tenant: ${tId}, Company: ${cId}`);
+    next();
+  });
 
   const getTenantId = (req: express.Request) => req.headers['x-tenant-id'] as string;
   const getCompanyId = (req: express.Request) => req.headers['x-company-id'] as string;

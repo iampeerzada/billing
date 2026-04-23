@@ -36,9 +36,16 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
     setIsLoading(true);
     try {
       // 1. Save Settings (Company Profile)
+      const tenantId = tenant.id;
+      const companyId = 'default';
+
       await fetch(`${API_URL}/api/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+          'x-company-id': companyId
+        },
         body: JSON.stringify({
           company_profile: profile
         })
@@ -54,7 +61,11 @@ export function SetupWizard({ tenant, onComplete }: SetupWizardProps) {
 
       const res = await fetch(`${API_URL}/api/tenants`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': tenantId,
+          'x-company-id': companyId
+        },
         body: JSON.stringify(updatedTenant)
       });
 

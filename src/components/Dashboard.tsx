@@ -17,7 +17,17 @@ export function Dashboard({ setActiveTab }: DashboardProps) {
   React.useEffect(() => {
     const fetchInvoices = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/invoices`);
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+        if (!activeTenant.id) return;
+
+        const response = await fetch(`${API_URL}/api/invoices`, {
+          headers: {
+            'x-tenant-id': activeTenant.id,
+            'x-company-id': activeCompany.id
+          }
+        });
         if (response.ok) {
           const data = await response.json();
           setInvoices(data);

@@ -1,3 +1,6 @@
+export type UserRole = 'admin' | 'superadmin';
+export type AppRoute = 'login' | 'app';
+
 export interface InvoiceItem {
   id: string;
   name: string;
