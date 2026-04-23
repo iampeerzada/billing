@@ -5,7 +5,6 @@ import Database from "better-sqlite3";
 import cors from "cors";
 
 // Safe database path for production VPS and local dev
-// We use process.cwd() which is the folder you run PM2 from
 const dbPath = path.join(process.cwd(), "data.db");
 const db = new Database(dbPath);
 
@@ -97,13 +96,9 @@ db.exec(`
     planId TEXT,
     expiryDate TEXT,
     status TEXT DEFAULT 'Active',
-    setupCompleted INTEGER DEFAULT 0, -- 0 = No, 1 = Yes
+    setupCompleted INTEGER DEFAULT 0,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-
-  -- Initial Default Admin Tenant
-  INSERT OR IGNORE INTO tenants (id, name, email, loginId, password, status, setupCompleted) 
-  VALUES ('admin', 'Main Admin', 'admin@ifastx.in', 'admin', 'admin123', 'Active', 1);
 
   CREATE TABLE IF NOT EXISTS plans (
     id TEXT PRIMARY KEY,
@@ -113,6 +108,19 @@ db.exec(`
     features TEXT, -- JSON array
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+`);
+
+// Migration: Add setupCompleted column if it doesn't exist to existing DB
+try {
+  db.exec("ALTER TABLE tenants ADD COLUMN setupCompleted INTEGER DEFAULT 0");
+} catch (e) {
+  // Column already exists
+}
+
+// Initial Default Admin Tenant
+db.exec(`
+  INSERT OR IGNORE INTO tenants (id, name, email, loginId, password, status, setupCompleted) 
+  VALUES ('admin', 'Main Admin', 'admin@ifastx.in', 'admin', 'admin123', 'Active', 1);
 `);
 
 async function startServer() {
@@ -281,7 +289,6 @@ async function startServer() {
   app.post("/api/login", (req, res) => {
     try {
       const { loginId, password } = req.body;
-      // Allow login via loginId OR email
       const tenant = db.prepare("SELECT * FROM tenants WHERE (loginId = ? OR email = ?) AND password = ?").get(loginId, loginId, password);
       
       if (tenant) {
