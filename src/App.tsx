@@ -21,11 +21,11 @@ import { OutstandingPayments } from './components/OutstandingPayments';
 import { CreditLimit } from './components/CreditLimit';
 import { AutoReminder } from './components/AutoReminder';
 import { GSTR1Export } from './components/GSTR1Export';
+import { GSTReportPlaceholder } from './components/GSTReportPlaceholder';
 import { BackupRestore } from './components/BackupRestore';
 import { GeneralSettings } from './components/GeneralSettings';
 import { Subscription } from './components/Subscription';
 import { SuperadminPanel } from './components/SuperadminPanel';
-import { SetupWizard } from './components/SetupWizard';
 import { InvoiceList } from './components/InvoiceList';
 import { UserRole, AppRoute } from './types';
 import { API_URL } from './config';
@@ -36,7 +36,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [appRoute, setAppRoute] = useState<AppRoute>('login');
   const [activeTenant, setActiveTenant] = useState<any>(null);
-  const [needsSetup, setNeedsSetup] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -74,15 +73,6 @@ export default function App() {
           localStorage.setItem('active_company', JSON.stringify({ id: 'default', name: tenant.name }));
         }
 
-        // Setup Check
-        if (tenant.setupCompleted === 0 || tenant.setupCompleted === '0') {
-          setNeedsSetup(true);
-          setActiveTab('setup');
-          return;
-        } else {
-          setNeedsSetup(false);
-        }
-
         // Validity Check
         if (tenant.validTill) {
           const expired = new Date().toISOString().split('T')[0] > tenant.validTill;
@@ -115,10 +105,6 @@ export default function App() {
   }
 
   const renderContent = () => {
-    if (needsSetup && activeTab !== 'setup') {
-      setActiveTab('setup');
-    }
-
     switch (activeTab) {
       case 'dashboard': return <Dashboard setActiveTab={setActiveTab} />;
       case 'invoice': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="invoice" />;
@@ -133,29 +119,29 @@ export default function App() {
       case 'stock-in-out': return <StockInOut />;
       case 'low-stock-alert': return <LowStockAlert />;
       case 'batch-expiry': return <BatchExpiry />;
-      case 'customer-history': return <CustomerHistory />;
+      case 'customer-history': 
+        return <CustomerHistory onInvoiceClick={(id) => {
+          localStorage.setItem('edit_invoice_id', id);
+          setActiveTab('invoice');
+        }} />;
       case 'vendor-master': return <VendorMaster />;
       case 'outstanding-payments': return <OutstandingPayments />;
       case 'credit-limit': return <CreditLimit />;
       case 'auto-reminder': return <AutoReminder />;
-      case 'gstr1-export': return <GSTR1Export />;
+      case 'gstr1-export': 
+        return <GSTR1Export onInvoiceClick={(id) => {
+          localStorage.setItem('edit_invoice_id', id);
+          setActiveTab('invoice');
+        }} />;
+      case 'gstr3b-report': return <GSTReportPlaceholder title="GSTR-3B Summary Return" description="GSTR-3B is a self-declared summary GST return filed every month. This module will automatically calculate total tax payable and ITC claims." />;
+      case 'gstr2b-report': return <GSTReportPlaceholder title="GSTR-2B Auto-generated Purchase Report" description="An auto-drafted ITC statement matching your purchases. View eligible and ineligible input tax credit automatically." />;
+      case 'gstr2a-report': return <GSTReportPlaceholder title="GSTR-2A Dynamic Purchase Return" description="A dynamic system generated tax return based on the information furnished by your suppliers. Automatically reconciles with your purchase register." />;
+      case 'gstr9-report': return <GSTReportPlaceholder title="GSTR-9 Annual Return" description="Annual compilation of returns filed in GSTR-1, GSTR-2A, and GSTR-3B. Consolidates everything perfectly for annual compliance." />;
+      case 'gstr9c-report': return <GSTReportPlaceholder title="GSTR-9C Reconciliation Statement" description="Reconciliation statement to be certified by a CA/CMA, for taxpayers whose turnover exceeds the specified limit." />;
       case 'backup-restore': return <BackupRestore />;
       case 'settings': return <GeneralSettings />;
       case 'subscription': return <Subscription tenant={activeTenant} />;
       case 'superadmin': return <SuperadminPanel />;
-      case 'setup': return <SetupWizard tenant={activeTenant} onComplete={() => {
-        const updated = { ...activeTenant, setupCompleted: 1 };
-        setActiveTenant(updated);
-        localStorage.setItem('active_tenant', JSON.stringify(updated));
-        
-        // Initialize default company for new setup
-        if (!localStorage.getItem('active_company')) {
-          localStorage.setItem('active_company', JSON.stringify({ id: 'default', name: updated.name + ' Default' }));
-        }
-
-        setNeedsSetup(false);
-        setActiveTab('dashboard');
-      }} />;
       case 'all-invoices': return <InvoiceList onNewInvoice={() => setActiveTab('invoice')} />;
       default: return <Dashboard setActiveTab={setActiveTab} />;
     }
@@ -178,7 +164,7 @@ export default function App() {
       />
       
       <div className="flex-1 flex flex-col min-w-0 lg:ml-64 relative">
-        <Topbar />
+        <Topbar setActiveTab={setActiveTab} />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
           <div className="max-w-7xl mx-auto animate-in fade-in duration-500">

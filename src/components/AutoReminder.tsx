@@ -150,28 +150,8 @@ export function AutoReminder() {
               <Clock size={18} className="text-slate-600" />
               <h3 className="font-bold text-slate-800">Recent Logs</h3>
             </div>
-            <div className="divide-y divide-slate-100">
-              <div className="p-4 flex items-start gap-3">
-                <Check size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Sent to Global Enterprises</p>
-                  <p className="text-xs text-slate-500">Overdue Reminder • Today, 10:00 AM</p>
-                </div>
-              </div>
-              <div className="p-4 flex items-start gap-3">
-                <Check size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Sent to Tech Solutions Ltd</p>
-                  <p className="text-xs text-slate-500">Due Today • Today, 09:30 AM</p>
-                </div>
-              </div>
-              <div className="p-4 flex items-start gap-3">
-                <Check size={16} className="text-emerald-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Sent to Local Retailers</p>
-                  <p className="text-xs text-slate-500">Before Due • Yesterday, 11:15 AM</p>
-                </div>
-              </div>
+            <div className="divide-y divide-slate-100 p-8 text-center text-slate-500">
+              <p className="text-sm">No automated reminders have been sent yet.</p>
             </div>
             <div className="p-3 border-t border-slate-200 text-center">
               <button 

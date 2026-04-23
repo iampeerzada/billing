@@ -53,7 +53,12 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   ];
 
   const taxItems = [
-    { id: 'gstr1-export', icon: FileJson, label: 'GSTR-1 Export' },
+    { id: 'gstr1-export', icon: FileJson, label: 'GSTR-1' },
+    { id: 'gstr3b-report', icon: FileJson, label: 'GSTR-3B' },
+    { id: 'gstr2b-report', icon: FileJson, label: 'GSTR-2B' },
+    { id: 'gstr2a-report', icon: FileJson, label: 'GSTR-2A' },
+    { id: 'gstr9-report', icon: FileJson, label: 'GSTR-9' },
+    { id: 'gstr9c-report', icon: FileJson, label: 'GSTR-9C' },
   ];
 
   const settingsItems = [

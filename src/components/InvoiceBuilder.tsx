@@ -146,10 +146,23 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
   const [itemMasterData, setItemMasterData] = useState<any[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('system_items');
-    if (saved) {
-      setItemMasterData(JSON.parse(saved));
-    }
+    const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+    const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+    const fetchItems = async () => {
+      try {
+        if (!activeTenant.id) return;
+        const res = await fetch(`${API_URL}/api/items`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+        });
+        if (res.ok) {
+          setItemMasterData(await res.json());
+        }
+      } catch (err) {
+        console.error('Failed to fetch items');
+      }
+    };
+    fetchItems();
   }, []);
 
   const handleNameChange = (id: string, value: string) => {
@@ -395,6 +408,7 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
 
     const invoice = {
       id: Date.now().toString(),
+      type: type,
       ...invoiceDetails,
       invoiceNumber: invoiceDetails.number,
       businessProfile,
@@ -411,13 +425,17 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
 
     try {
       // Save to backend API
-      const response = await fetch(`${API_URL}/api/invoices`, {
+      const apiEndpoint = type === 'estimate' ? 'estimates' : type === 'purchase' ? 'purchases' : 'invoices';
+      const response = await fetch(`${API_URL}/api/${apiEndpoint}`, {
         method: 'POST',
         headers: isolationHeaders,
         body: JSON.stringify(invoice)
       });
 
-      if (!response.ok) throw new Error('Failed to save to backend');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to save to backend: ${response.status} - ${errorText}`);
+      }
 
       // Keep localStorage for backward compatibility/offline use
       const storageKey = type === 'estimate' ? 'estimates' : type === 'purchase' ? 'purchases' : type === 'credit-debit' ? 'credit_debit_notes' : 'invoices';
@@ -457,6 +475,25 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                 body: JSON.stringify({
                   ...si,
                   currentStock: newStock
+                })
+              });
+            } else if (item.name.trim()) {
+              // Item does not exist, so save it as a new item in the item master
+              const newItemId = 'item_' + Date.now().toString() + Math.random().toString(36).substr(2, 5);
+              await fetch(`${API_URL}/api/items`, {
+                method: 'POST',
+                headers: isolationHeaders,
+                body: JSON.stringify({
+                  id: newItemId,
+                  name: item.name,
+                  category: 'General',
+                  price: item.price,
+                  currentStock: type === 'purchase' ? item.quantity : 0, 
+                  minStock: 5,
+                  unit: 'Pcs',
+                  gstRate: item.gstRate || 18,
+                  hsn: item.hsn || '',
+                  description: item.description || ''
                 })
               });
             }

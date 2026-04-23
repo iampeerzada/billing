@@ -1,28 +1,96 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, FileJson, FileSpreadsheet, Calendar, Filter, FileText } from 'lucide-react';
+import { API_URL } from '../config';
 
-export function GSTR1Export() {
+interface GSTR1ExportProps {
+  onInvoiceClick?: (id: string) => void;
+}
+
+export function GSTR1Export({ onInvoiceClick }: GSTR1ExportProps) {
   const [activeTab, setActiveTab] = useState('b2b');
-  const [month, setMonth] = useState('2023-10');
+  const [month, setMonth] = useState(new Date().toISOString().substring(0, 7));
+  const [invoices, setInvoices] = useState<any[]>([]);
 
-  // Mock Data
-  const b2bData = [
-    { id: 1, gstin: '27AADCB2230M1Z2', name: 'Tech Solutions Ltd', invoiceNo: 'INV-102', date: '15-Oct-2023', value: 25000, taxable: 21186.44, igst: 0, cgst: 1906.78, sgst: 1906.78 },
-    { id: 2, gstin: '29ABCDE1234F2Z5', name: 'Global Enterprises', invoiceNo: 'INV-095', date: '20-Oct-2023', value: 45000, taxable: 38135.59, igst: 6864.41, cgst: 0, sgst: 0 },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
 
-  const b2cData = [
-    { id: 1, state: '27-Maharashtra', rate: 18, taxable: 15000, igst: 0, cgst: 1350, sgst: 1350 },
-    { id: 2, state: '24-Gujarat', rate: 12, taxable: 8000, igst: 960, cgst: 0, sgst: 0 },
-  ];
+        if (!activeTenant.id) return;
 
-  const hsnData = [
-    { id: 1, hsn: '9983', desc: 'IT Services', uqc: 'OTH', qty: 0, value: 70000, taxable: 59322.03, igst: 6864.41, cgst: 1906.78, sgst: 1906.78 },
-  ];
+        const res = await fetch(`${API_URL}/api/invoices`, {
+          headers: {
+            'x-tenant-id': activeTenant.id,
+            'x-company-id': activeCompany.id
+          }
+        });
+
+        if (res.ok) {
+          setInvoices(await res.json());
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Filter by month
+  const filteredInvoices = invoices.filter(inv => inv.date && inv.date.startsWith(month));
+
+  // Compute Data
+  const b2bData = filteredInvoices.filter(inv => inv.customerData?.gstin).map(inv => ({
+    id: inv.id,
+    gstin: inv.customerData?.gstin,
+    name: inv.customerData?.name,
+    invoiceNo: inv.invoiceNumber || inv.number,
+    date: inv.date.split('-').reverse().join('-'), // DD-MM-YYYY
+    value: inv.total || 0,
+    taxable: inv.subtotal || 0,
+    igst: inv.igst || 0,
+    cgst: inv.cgst || 0,
+    sgst: inv.sgst || 0,
+    items: inv.items || [],
+    state: inv.customerData?.state || ''
+  }));
+
+  const b2cData = filteredInvoices.filter(inv => !inv.customerData?.gstin).map(inv => ({
+    id: inv.id,
+    invoiceNo: inv.invoiceNumber || inv.number,
+    state: inv.customerData?.state || 'Unregistered',
+    taxable: inv.subtotal || 0,
+    igst: inv.igst || 0,
+    cgst: inv.cgst || 0,
+    sgst: inv.sgst || 0,
+  }));
+
+  // Aggregate HSN
+  const hsnMap: any = {};
+  filteredInvoices.forEach(inv => {
+    (inv.items || []).forEach((item: any) => {
+      if (!item.hsn) return;
+      if (!hsnMap[item.hsn]) {
+        hsnMap[item.hsn] = { id: item.hsn, hsn: item.hsn, desc: item.name, uqc: 'NOS', qty: 0, value: 0, taxable: 0, igst: 0, cgst: 0, sgst: 0 };
+      }
+      hsnMap[item.hsn].qty += (item.quantity || 0);
+      hsnMap[item.hsn].taxable += (item.price * item.quantity);
+      hsnMap[item.hsn].value += (item.price * item.quantity) * (1 + (item.gstRate || 0)/100);
+      if (inv.igst) hsnMap[item.hsn].igst += (item.price * item.quantity * (item.gstRate || 0)/100);
+      else {
+        hsnMap[item.hsn].cgst += (item.price * item.quantity * (item.gstRate || 0)/200);
+        hsnMap[item.hsn].sgst += (item.price * item.quantity * (item.gstRate || 0)/200);
+      }
+    });
+  });
+  const hsnData = Object.values(hsnMap);
+
+  const totalTaxable = filteredInvoices.reduce((s, i) => s + (i.subtotal || 0), 0);
+  const totalTax = filteredInvoices.reduce((s, i) => s + (i.cgst || 0) + (i.sgst || 0) + (i.igst || 0), 0);
 
   const handleExportJSON = () => {
     const data = {
-      gstin: "YOUR_GSTIN",
+      gstin: "YOUR_GSTIN", // In a real app, pull from activeCompany
       fp: month.replace('-', ''),
       b2b: b2bData,
       b2cs: b2cData,
@@ -37,9 +105,11 @@ export function GSTR1Export() {
   };
 
   const handleExportExcel = () => {
-    let csv = "GSTIN/UIN of Recipient,Receiver Name,Invoice Number,Invoice date,Invoice Value,Place Of Supply,Reverse Charge,Applicable % of Tax Rate,Invoice Type,E-Commerce GSTIN,Rate,Taxable Value,Cess Amount\n";
+    let csv = "GSTIN/UIN of Recipient,Receiver Name,Invoice Number,Invoice date,Invoice Value,Place Of Supply,Reverse Charge,Invoice Type,E-Commerce GSTIN,Rate,Taxable Value,Cess Amount\n";
     b2bData.forEach(row => {
-      csv += `${row.gstin},${row.name},${row.invoiceNo},${row.date},${row.value},27-Maharashtra,N,,Regular,,18,${row.taxable},0\n`;
+      // Assuming a single rate per invoice for simplicity in B2B export, or iterate items.
+      const rate = row.items.length > 0 ? row.items[0].gstRate : 18;
+      csv += `${row.gstin},${row.name},${row.invoiceNo},${row.date},${row.value},${row.state},N,Regular,,${rate},${row.taxable},0\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -90,15 +160,15 @@ export function GSTR1Export() {
           <div className="flex gap-4">
             <div className="text-sm">
               <span className="text-slate-500">Total Invoices: </span>
-              <span className="font-bold text-slate-900">4</span>
+              <span className="font-bold text-slate-900">{filteredInvoices.length}</span>
             </div>
             <div className="text-sm">
               <span className="text-slate-500">Total Taxable: </span>
-              <span className="font-bold text-slate-900">₹ 67,322.03</span>
+              <span className="font-bold text-slate-900">₹ {totalTaxable.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
             </div>
             <div className="text-sm">
               <span className="text-slate-500">Total Tax: </span>
-              <span className="font-bold text-slate-900">₹ 12,027.97</span>
+              <span className="font-bold text-slate-900">₹ {totalTax.toLocaleString('en-IN', {minimumFractionDigits: 2})}</span>
             </div>
           </div>
         </div>
@@ -142,17 +212,23 @@ export function GSTR1Export() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
+                  {b2bData.length === 0 && <tr><td colSpan={9} className="p-4 text-center text-slate-500">No B2B invoices found</td></tr>}
                   {b2bData.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/50 text-sm">
                       <td className="p-4 font-mono text-slate-700">{row.gstin}</td>
                       <td className="p-4 text-slate-900">{row.name}</td>
-                      <td className="p-4 text-blue-600">{row.invoiceNo}</td>
+                      <td 
+                        className="p-4 text-blue-600 font-bold hover:underline cursor-pointer"
+                        onClick={() => onInvoiceClick && onInvoiceClick(row.id)}
+                      >
+                        {row.invoiceNo}
+                      </td>
                       <td className="p-4 text-slate-600">{row.date}</td>
-                      <td className="p-4 text-right font-medium text-slate-900">₹ {row.value.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-600">₹ {row.taxable.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-600">{row.igst > 0 ? `₹ ${row.igst.toLocaleString()}` : '-'}</td>
-                      <td className="p-4 text-right text-slate-600">{row.cgst > 0 ? `₹ ${row.cgst.toLocaleString()}` : '-'}</td>
-                      <td className="p-4 text-right text-slate-600">{row.sgst > 0 ? `₹ ${row.sgst.toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right font-medium text-slate-900">₹ {Number(row.value).toLocaleString()}</td>
+                      <td className="p-4 text-right text-slate-600">₹ {Number(row.taxable).toLocaleString()}</td>
+                      <td className="p-4 text-right text-slate-600">{row.igst > 0 ? `₹ ${Number(row.igst).toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right text-slate-600">{row.cgst > 0 ? `₹ ${Number(row.cgst).toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right text-slate-600">{row.sgst > 0 ? `₹ ${Number(row.sgst).toLocaleString()}` : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -165,8 +241,8 @@ export function GSTR1Export() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wider">
+                    <th className="p-4 font-medium">Invoice No.</th>
                     <th className="p-4 font-medium">Place of Supply (State)</th>
-                    <th className="p-4 font-medium text-center">Rate (%)</th>
                     <th className="p-4 font-medium text-right">Taxable Value</th>
                     <th className="p-4 font-medium text-right">IGST</th>
                     <th className="p-4 font-medium text-right">CGST</th>
@@ -174,14 +250,20 @@ export function GSTR1Export() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
+                  {b2cData.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-slate-500">No B2C Invoices found</td></tr>}
                   {b2cData.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50/50 text-sm">
+                      <td 
+                        className="p-4 text-blue-600 font-bold hover:underline cursor-pointer"
+                        onClick={() => onInvoiceClick && onInvoiceClick(row.id)}
+                      >
+                        {row.invoiceNo}
+                      </td>
                       <td className="p-4 text-slate-900">{row.state}</td>
-                      <td className="p-4 text-center text-slate-600">{row.rate}%</td>
-                      <td className="p-4 text-right font-medium text-slate-900">₹ {row.taxable.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-600">{row.igst > 0 ? `₹ ${row.igst.toLocaleString()}` : '-'}</td>
-                      <td className="p-4 text-right text-slate-600">{row.cgst > 0 ? `₹ ${row.cgst.toLocaleString()}` : '-'}</td>
-                      <td className="p-4 text-right text-slate-600">{row.sgst > 0 ? `₹ ${row.sgst.toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right font-medium text-slate-900">₹ {Number(row.taxable).toLocaleString()}</td>
+                      <td className="p-4 text-right text-slate-600">{row.igst > 0 ? `₹ ${Number(row.igst).toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right text-slate-600">{row.cgst > 0 ? `₹ ${Number(row.cgst).toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right text-slate-600">{row.sgst > 0 ? `₹ ${Number(row.sgst).toLocaleString()}` : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -206,17 +288,18 @@ export function GSTR1Export() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {hsnData.map((row) => (
+                  {hsnData.length === 0 && <tr><td colSpan={9} className="p-4 text-center text-slate-500">No HSN Data found</td></tr>}
+                  {hsnData.map((row: any) => (
                     <tr key={row.id} className="hover:bg-slate-50/50 text-sm">
                       <td className="p-4 font-mono text-slate-700">{row.hsn}</td>
                       <td className="p-4 text-slate-900">{row.desc}</td>
                       <td className="p-4 text-center text-slate-600">{row.uqc}</td>
                       <td className="p-4 text-right text-slate-600">{row.qty}</td>
-                      <td className="p-4 text-right font-medium text-slate-900">₹ {row.value.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-600">₹ {row.taxable.toLocaleString()}</td>
-                      <td className="p-4 text-right text-slate-600">{row.igst > 0 ? `₹ ${row.igst.toLocaleString()}` : '-'}</td>
-                      <td className="p-4 text-right text-slate-600">{row.cgst > 0 ? `₹ ${row.cgst.toLocaleString()}` : '-'}</td>
-                      <td className="p-4 text-right text-slate-600">{row.sgst > 0 ? `₹ ${row.sgst.toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right font-medium text-slate-900">₹ {Number(row.value).toLocaleString()}</td>
+                      <td className="p-4 text-right text-slate-600">₹ {Number(row.taxable).toLocaleString()}</td>
+                      <td className="p-4 text-right text-slate-600">{row.igst > 0 ? `₹ ${Number(row.igst).toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right text-slate-600">{row.cgst > 0 ? `₹ ${Number(row.cgst).toLocaleString()}` : '-'}</td>
+                      <td className="p-4 text-right text-slate-600">{row.sgst > 0 ? `₹ ${Number(row.sgst).toLocaleString()}` : '-'}</td>
                     </tr>
                   ))}
                 </tbody>

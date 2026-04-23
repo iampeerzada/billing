@@ -1,25 +1,61 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, History, FileText, CheckCircle, Clock } from 'lucide-react';
+import { API_URL } from '../config';
 
-export function CustomerHistory() {
-  const [selectedCustomer, setSelectedCustomer] = useState('Tech Solutions Ltd');
+interface CustomerHistoryProps {
+  onInvoiceClick?: (invoiceId: string) => void;
+}
 
-  // Mock data
-  const customers = ['Tech Solutions Ltd', 'Global Enterprises', 'ABC Corp', 'Local Retailers'];
+export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<string[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState('');
   
-  const history = [
-    { id: 1, date: '2023-10-28', type: 'Payment', ref: 'REC-089', amount: 15000, status: 'Completed', notes: 'Received via NEFT' },
-    { id: 2, date: '2023-10-15', type: 'Invoice', ref: 'INV-102', amount: 25000, status: 'Partially Paid', notes: 'Due on 2023-11-15' },
-    { id: 3, date: '2023-09-20', type: 'Payment', ref: 'REC-075', amount: 45000, status: 'Completed', notes: 'Cheque cleared' },
-    { id: 4, date: '2023-09-05', type: 'Invoice', ref: 'INV-088', amount: 45000, status: 'Paid', notes: 'Due on 2023-10-05' },
-    { id: 5, date: '2023-08-10', type: 'Estimate', ref: 'EST-045', amount: 50000, status: 'Accepted', notes: 'Converted to INV-088' },
-  ];
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+      if (!activeTenant.id) return;
+
+      const res = await fetch(`${API_URL}/api/invoices`, {
+        headers: {
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setInvoices(data);
+        
+        // Extract unique customers
+        const uniqueCustomers = Array.from(new Set(data.map((inv: any) => inv.customerData?.name).filter(Boolean))) as string[];
+        setCustomers(uniqueCustomers);
+        if (uniqueCustomers.length > 0 && !selectedCustomer) {
+          setSelectedCustomer(uniqueCustomers[0]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const customerInvoices = invoices.filter(inv => inv.customerData?.name === selectedCustomer);
+
+  const totalBilled = customerInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+  const totalPaid = customerInvoices.reduce((sum, inv) => sum + (inv.status === 'Paid' ? (inv.total || 0) : 0), 0);
+  const outstanding = totalBilled - totalPaid;
 
   const handleExportCSV = () => {
-    const headers = ['Date', 'Type', 'Ref No.', 'Amount', 'Status', 'Notes'];
+    const headers = ['Date', 'Type', 'Ref No.', 'Amount', 'Status'];
     const csvContent = [
       headers.join(','),
-      ...history.map(item => `${item.date},${item.type},${item.ref},${item.amount},${item.status},"${item.notes}"`)
+      ...customerInvoices.map(item => `${item.date},Invoice,${item.invoiceNumber},${item.total},${item.status}`)
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -78,15 +114,15 @@ export function CustomerHistory() {
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
               <p className="text-sm text-slate-500 mb-1">Total Billed</p>
-              <p className="text-xl font-bold text-slate-900">₹ 70,000</p>
+              <p className="text-xl font-bold text-slate-900">₹ {totalBilled.toLocaleString('en-IN')}</p>
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-              <p className="text-sm text-slate-500 mb-1">Total Paid</p>
-              <p className="text-xl font-bold text-emerald-600">₹ 60,000</p>
+              <p className="text-sm text-slate-500 mb-1">Total Paid (Estimated)</p>
+              <p className="text-xl font-bold text-emerald-600">₹ {totalPaid.toLocaleString('en-IN')}</p>
             </div>
             <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm bg-blue-50/50">
               <p className="text-sm text-slate-500 mb-1">Outstanding Balance</p>
-              <p className="text-xl font-bold text-blue-600">₹ 10,000</p>
+              <p className="text-xl font-bold text-blue-600">₹ {outstanding.toLocaleString('en-IN')}</p>
             </div>
           </div>
 
@@ -95,7 +131,7 @@ export function CustomerHistory() {
             <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <History size={18} className="text-blue-600" />
-                Timeline for {selectedCustomer}
+                Timeline for {selectedCustomer || 'None Selected'}
               </h3>
               <button 
                 onClick={() => alert('Advanced filters coming soon')}
@@ -114,23 +150,28 @@ export function CustomerHistory() {
                     <th className="p-4 font-medium">Ref No.</th>
                     <th className="p-4 font-medium text-right">Amount</th>
                     <th className="p-4 font-medium text-center">Status</th>
-                    <th className="p-4 font-medium">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {history.map((item) => (
+                  {customerInvoices.length === 0 && (
+                    <tr><td colSpan={5} className="p-4 text-center text-slate-500">No records found.</td></tr>
+                  )}
+                  {customerInvoices.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors text-sm">
                       <td className="p-4 text-slate-600">{item.date}</td>
                       <td className="p-4">
                         <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                          {item.type === 'Invoice' && <FileText size={14} className="text-blue-500" />}
-                          {item.type === 'Payment' && <CheckCircle size={14} className="text-emerald-500" />}
-                          {item.type === 'Estimate' && <Clock size={14} className="text-amber-500" />}
-                          {item.type}
+                          <FileText size={14} className="text-blue-500" />
+                          Invoice
                         </span>
                       </td>
-                      <td className="p-4 text-blue-600 hover:underline cursor-pointer font-medium">{item.ref}</td>
-                      <td className="p-4 text-right font-bold text-slate-900">₹ {item.amount.toLocaleString()}</td>
+                      <td 
+                        className="p-4 text-blue-600 hover:underline cursor-pointer font-medium"
+                        onClick={() => onInvoiceClick && onInvoiceClick(item.id)}
+                      >
+                        {item.invoiceNumber || item.number || item.id}
+                      </td>
+                      <td className="p-4 text-right font-bold text-slate-900">₹ {Number(item.total).toLocaleString()}</td>
                       <td className="p-4 text-center">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                           item.status === 'Completed' || item.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 
@@ -138,10 +179,9 @@ export function CustomerHistory() {
                           item.status === 'Accepted' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
                           'bg-slate-100 text-slate-700'
                         }`}>
-                          {item.status}
+                          {item.status || 'Pending'}
                         </span>
                       </td>
-                      <td className="p-4 text-slate-500">{item.notes}</td>
                     </tr>
                   ))}
                 </tbody>

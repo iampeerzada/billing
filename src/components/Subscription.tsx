@@ -204,7 +204,7 @@ export function Subscription() {
               </div>
               
               <ul className="space-y-4">
-                {plan.features.filter(f => f.trim() !== '').map((feature, i) => (
+                {(Array.isArray(plan.features) ? plan.features : (typeof plan.features === 'string' ? plan.features.split(',') : [])).filter(f => f.trim() !== '').map((feature, i) => (
                   <li key={i} className="flex items-start gap-3">
                     <CheckCircle2 size={20} className="text-blue-500 shrink-0 mt-0.5" />
                     <span className="text-slate-600 text-sm leading-relaxed">{feature}</span>

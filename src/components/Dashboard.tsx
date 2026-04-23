@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, 
-  MessageCircle, Globe, User, Package, IndianRupee, Users
+  MessageCircle, Globe, User, Package, IndianRupee, Users, Building2, FileText
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { API_URL } from '../config';
@@ -13,33 +13,42 @@ interface DashboardProps {
 export function Dashboard({ setActiveTab }: DashboardProps) {
   const [invoices, setInvoices] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [companies, setCompanies] = React.useState<any[]>([]);
+  const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+  const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
 
   React.useEffect(() => {
-    const fetchInvoices = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
-        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
-
         if (!activeTenant.id) return;
 
-        const response = await fetch(`${API_URL}/api/invoices`, {
-          headers: {
-            'x-tenant-id': activeTenant.id,
-            'x-company-id': activeCompany.id
-          }
+        // Fetch Invoices
+        const invRes = await fetch(`${API_URL}/api/invoices`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
         });
-        if (response.ok) {
-          const data = await response.json();
-          setInvoices(data);
-        }
+        if (invRes.ok) setInvoices(await invRes.json());
+
+        // Fetch Companies for Switcher
+        const compRes = await fetch(`${API_URL}/api/companies`, {
+          headers: { 'x-tenant-id': activeTenant.id }
+        });
+        if (compRes.ok) setCompanies(await compRes.json());
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchInvoices();
+    fetchDashboardData();
   }, []);
+
+  const switchCompany = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selected = companies.find(c => c.id === e.target.value);
+    if (selected) {
+      localStorage.setItem('active_company', JSON.stringify(selected));
+      window.location.reload();
+    }
+  };
 
   const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
   const totalReceivable = invoices
@@ -81,17 +90,31 @@ export function Dashboard({ setActiveTab }: DashboardProps) {
         </div>
       </div>
 
-      {/* Login Status */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center gap-3 shadow-sm">
-        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center border border-blue-200 text-blue-500 shadow-sm shrink-0">
-          <User size={20} />
+      {/* Workspace Switcher */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center border border-blue-100 text-blue-600 shadow-sm shrink-0">
+            <Building2 size={20} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Active Workspace</p>
+            <h2 className="text-lg font-black text-slate-800">{activeCompany?.name || 'Default Company'}</h2>
+          </div>
         </div>
-        <span className="text-slate-700 font-medium text-sm sm:text-base">You are now logged in as Secondary Admin</span>
+        <select 
+          className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full sm:w-64 p-2.5 outline-none font-medium"
+          value={activeCompany?.id || ''}
+          onChange={switchCompany}
+        >
+          {companies.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Quick Actions (Simple UX) */}
       {setActiveTab && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <button 
             onClick={() => setActiveTab('invoice')}
             className="flex flex-col items-center justify-center gap-3 p-5 bg-white border border-slate-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all text-slate-700 hover:text-blue-600 group"
@@ -127,6 +150,15 @@ export function Dashboard({ setActiveTab }: DashboardProps) {
               <Users size={24} />
             </div>
             <span className="font-bold text-sm">View Ledger</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('all-invoices')}
+            className="flex flex-col items-center justify-center gap-3 p-5 bg-white border border-slate-200 rounded-xl hover:border-purple-500 hover:shadow-md transition-all text-slate-700 hover:text-purple-600 group"
+          >
+            <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+              <FileText size={24} />
+            </div>
+            <span className="font-bold text-sm text-center">Past Docs</span>
           </button>
         </div>
       )}

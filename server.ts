@@ -195,12 +195,37 @@ async function startServer() {
       // If no plans exist, return defaults
       if (plans.length === 0) {
         return res.json([
-          { id: '1', name: 'Starter', price: 999, duration: 365, features: 'Basic Billing, 1 User' },
-          { id: '2', name: 'Pro', price: 2499, duration: 365, features: 'Advanced Billing, 5 Users, Inventory' },
-          { id: '3', name: 'Enterprise', price: 4999, duration: 365, features: 'Unlimited Everything, 24/7 Support' }
+          { id: '1', name: 'Starter', prices: { monthly: 99, quarterly: 279, halfYearly: 549, yearly: 999 }, features: ['50 Invoices/month', 'Basic Reports', 'Email Support'] },
+          { id: '2', name: 'Pro', prices: { monthly: 249, quarterly: 699, halfYearly: 1299, yearly: 2499 }, features: ['Unlimited Invoices', 'GSTR Export', 'WhatsApp Automation', 'Priority Support'] },
+          { id: '3', name: 'Enterprise', prices: { monthly: 499, quarterly: 1399, halfYearly: 2599, yearly: 4999 }, features: ['Custom Integrations', 'Multiple Users', 'Dedicated Account Manager'] }
         ]);
       }
-      res.json(plans);
+      
+      const formatted = plans.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        prices: p.prices ? JSON.parse(p.prices) : { monthly: p.price || 0, quarterly: 0, halfYearly: 0, yearly: 0 },
+        features: p.features ? (p.features.startsWith('[') ? JSON.parse(p.features) : p.features.split(',')) : []
+      }));
+      res.json(formatted);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/plans", (req, res) => {
+    try {
+      const p = req.body;
+      // Handle the case where the table doesn't have the 'prices' column yet
+      const rows = db.prepare("PRAGMA table_info(plans)").all();
+      const hasPricesCol = rows.some((r: any) => r.name === 'prices');
+      if (!hasPricesCol) {
+        db.prepare("ALTER TABLE plans ADD COLUMN prices TEXT").run();
+      }
+
+      db.prepare("INSERT OR REPLACE INTO plans (id, name, price, prices, features) VALUES (?, ?, ?, ?, ?)")
+        .run(p.id, p.name, p.prices?.monthly || 0, JSON.stringify(p.prices || {}), JSON.stringify(p.features || []));
+      res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
@@ -277,16 +302,74 @@ async function startServer() {
       const data = req.body;
       if (!tId || !cId) return res.status(400).json({ error: "Missing Isolation Headers" });
       
-      const keys = Object.keys(data).filter(k => k !== 'tenantId' && k !== 'companyId');
-      const placeholders = keys.map(() => '?').join(', ');
-      const columns = [...keys, 'tenantId', 'companyId'].join(', ');
-      const values = keys.map(k => jsonFields.includes(k) ? JSON.stringify(data[k]) : data[k]);
-      values.push(tId, cId);
-
       try {
-        db.prepare(`INSERT OR REPLACE INTO ${table} (${columns}) VALUES (${keys.map(() => '?').join(', ')}, ?, ?)`).run(...values);
+        const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all();
+        const validColumns = tableInfo.map((col: any) => col.name);
+        
+        let keys = Object.keys(data).filter(k => validColumns.includes(k) && k !== 'tenantId' && k !== 'companyId');
+        
+        // Manual fallback mappings for common frontend-backend data structure mismatches
+        if (table === 'invoices' && !keys.includes('customerData') && data.customer) {
+          keys.push('customerData');
+          data.customerData = data.customer;
+        }
+        if (table === 'invoices' && !keys.includes('itemsData') && data.items) {
+          keys.push('itemsData');
+          data.itemsData = data.items;
+        }
+        if (table === 'estimates' && !keys.includes('customerData') && data.customer) {
+          keys.push('customerData');
+          data.customerData = data.customer;
+        }
+        if (table === 'estimates' && !keys.includes('itemsData') && data.items) {
+          keys.push('itemsData');
+          data.itemsData = data.items;
+        }
+        if (table === 'purchases' && !keys.includes('vendorData') && data.customer) {
+          keys.push('vendorData');
+          data.vendorData = data.customer;
+        }
+        if (table === 'purchases' && !keys.includes('itemsData') && data.items) {
+          keys.push('itemsData');
+          data.itemsData = data.items;
+        }
+        if (table === 'purchases' && !keys.includes('billNumber') && data.number) {
+          keys.push('billNumber');
+          data.billNumber = data.number;
+        }
+        if (table === 'estimates' && !keys.includes('estimateNumber') && data.number) {
+          keys.push('estimateNumber');
+          data.estimateNumber = data.number;
+        }
+        if (table === 'stock_movements') {
+          if (!keys.includes('itemId') && data.itemName) {
+             keys.push('itemId');
+             data.itemId = data.itemName;
+          }
+          if (!keys.includes('quantity') && data.qty !== undefined) {
+             keys.push('quantity');
+             data.quantity = data.qty;
+          }
+          if (!keys.includes('remarks') && data.notes) {
+             keys.push('remarks');
+             data.remarks = data.notes;
+          }
+        }
+        
+        // Final filter to ensure we strictly only insert columns that exist in DB
+        keys = keys.filter(k => validColumns.includes(k));
+
+        const placeholders = keys.map(() => '?').join(', ');
+        const columns = [...keys, 'tenantId', 'companyId'].join(', ');
+        const values = keys.map(k => jsonFields.includes(k) ? JSON.stringify(data[k]) : data[k]);
+        values.push(tId, cId);
+
+        db.prepare(`INSERT OR REPLACE INTO ${table} (${columns}) VALUES (${placeholders}, ?, ?)`).run(...values);
         res.json({ success: true });
-      } catch (e) { res.status(500).json({ error: e.message }); }
+      } catch (e) { 
+        require('fs').appendFileSync('server_error.log', `[${pathBase}] Error: ${e.message}\nPayload: ${JSON.stringify(data)}\n`);
+        res.status(500).json({ error: e.message }); 
+      }
     });
 
     // DELETE

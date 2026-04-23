@@ -61,22 +61,29 @@ export function SuperadminPanel() {
       const [pRes, aRes] = await Promise.all([
         fetch(`${API_URL}/api/plans`, {
           headers: { 'x-tenant-id': 'system', 'x-company-id': 'system' }
-        }),
+        }).catch(() => null),
         fetch(`${API_URL}/api/tenants`, {
           headers: { 'x-tenant-id': 'system', 'x-company-id': 'system' }
-        })
+        }).catch(() => null)
       ]);
       
-      if (pRes.ok) {
+      if (pRes && pRes.ok) {
         const pData = await pRes.json();
         setPlans(pData.length > 0 ? pData : DEFAULT_PLANS);
+      } else {
+        setPlans(DEFAULT_PLANS);
       }
-      if (aRes.ok) {
+
+      if (aRes && aRes.ok) {
         const aData = await aRes.json();
         setAdmins(aData);
+      } else {
+        setAdmins(MOCK_ADMINS);
       }
     } catch (error) {
       console.error("Failed to fetch server data:", error);
+      setPlans(DEFAULT_PLANS);
+      setAdmins(MOCK_ADMINS);
     } finally {
       setIsLoading(false);
     }
@@ -103,15 +110,17 @@ export function SuperadminPanel() {
         body: JSON.stringify(updated)
       });
       if (response.ok) fetchData();
-    } catch (error) {
+      else alert(`Failed to update status. Server returned ${response.status}`);
+    } catch (error: any) {
       console.error("Failed to update status:", error);
+      alert(`Network error: Failed to toggle admin status. Error: ${error.message}`);
     }
   };
 
   const savePlans = async () => {
     try {
       for (const plan of plans) {
-        await fetch(`${API_URL}/api/plans`, {
+        const response = await fetch(`${API_URL}/api/plans`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -120,11 +129,15 @@ export function SuperadminPanel() {
           },
           body: JSON.stringify(plan)
         });
+        if (!response.ok) {
+           alert(`Warning: Failed to save plan ${plan.name}. Server returned ${response.status}`);
+        }
       }
       alert('Subscription plans updated successfully across the platform.');
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save plans:", error);
+      alert(`Network error: Failed to save plans. Error: ${error.message}`);
     }
   };
 
@@ -172,9 +185,12 @@ export function SuperadminPanel() {
         setNewTenant({
           name: '', email: '', phone: '', loginId: '', password: '', planId: '1'
         });
+      } else {
+        alert(`Failed to add tenant. Server returned ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to add tenant:", error);
+      alert(`Network error: Failed to add tenant. If you're using a proxy config, double check CORS headers (x-tenant-id, x-company-id). Error: ${error.message}`);
     }
   };
 
@@ -566,6 +582,7 @@ export function SuperadminPanel() {
                               value={plan.prices?.monthly || 0}
                               onChange={(e) => {
                                 const updated = [...plans];
+                                if (!updated[index].prices) updated[index].prices = { monthly: 0, quarterly: 0, halfYearly: 0, yearly: 0 };
                                 updated[index].prices.monthly = parseFloat(e.target.value) || 0;
                                 setPlans(updated);
                               }}
@@ -582,6 +599,7 @@ export function SuperadminPanel() {
                               value={plan.prices?.quarterly || 0}
                               onChange={(e) => {
                                 const updated = [...plans];
+                                if (!updated[index].prices) updated[index].prices = { monthly: 0, quarterly: 0, halfYearly: 0, yearly: 0 };
                                 updated[index].prices.quarterly = parseFloat(e.target.value) || 0;
                                 setPlans(updated);
                               }}
@@ -598,6 +616,7 @@ export function SuperadminPanel() {
                               value={plan.prices?.halfYearly || 0}
                               onChange={(e) => {
                                 const updated = [...plans];
+                                if (!updated[index].prices) updated[index].prices = { monthly: 0, quarterly: 0, halfYearly: 0, yearly: 0 };
                                 updated[index].prices.halfYearly = parseFloat(e.target.value) || 0;
                                 setPlans(updated);
                               }}
@@ -614,6 +633,7 @@ export function SuperadminPanel() {
                               value={plan.prices?.yearly || 0}
                               onChange={(e) => {
                                 const updated = [...plans];
+                                if (!updated[index].prices) updated[index].prices = { monthly: 0, quarterly: 0, halfYearly: 0, yearly: 0 };
                                 updated[index].prices.yearly = parseFloat(e.target.value) || 0;
                                 setPlans(updated);
                               }}
@@ -626,7 +646,7 @@ export function SuperadminPanel() {
                     <div className="p-6 flex-1 flex flex-col">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">Included Features</label>
                       <textarea
-                        value={plan.features.join('\n')}
+                        value={Array.isArray(plan.features) ? plan.features.join('\n') : (typeof plan.features === 'string' ? plan.features : '')}
                         onChange={(e) => {
                           const updated = [...plans];
                           updated[index].features = e.target.value.split('\n');
