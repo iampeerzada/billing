@@ -156,25 +156,20 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 6000;
 
   // --- UNIVERSAL NUCLEAR CORS POLICY ---
-  // This must be the VERY FIRST middleware to catch all preflights
+  // Catch all Preflight (OPTIONS) and standard requests
   app.use((req, res, next) => {
     const origin = req.headers.origin || '*';
     
-    // Allow all origins
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    // Allow all methods
+    // Explicitly using * and disabling credentials for maximum cross-domain compatibility
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    // Allow ALL custom headers - listing them explicitly AND using * for max compatibility
-    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant-id, x-company-id, *');
-    // Allow credentials if needed
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    // Cache preflight for 24 hours
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant-id, x-company-id, X-Tenant-Id, X-Company-Id');
+    res.setHeader('Access-Control-Allow-Credentials', 'false');
     res.setHeader('Access-Control-Max-Age', '86400');
-    // Debug header to confirm Node is handling the CORS
-    res.setHeader('X-Backend-CORS', 'Node-Express-Applied');
+    res.setHeader('X-Backend-CORS', 'Nuclear-Applied-v3');
 
-    // Handle preflight requests immediately
     if (req.method === 'OPTIONS') {
+      console.log(`[CORS-PREFLIGHT] Authorized: ${req.url} from ${origin}`);
       return res.status(204).end();
     }
     next();
