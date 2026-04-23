@@ -154,7 +154,7 @@ async function startServer() {
   const app = express();
   // Use environment port or default to 3000 (AI Studio default)
   // For your VPS, set the PORT environment variable to 6000
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = Number(process.env.PORT) || 6000;
 
   // --- MANUAL ROBUST CORS MIDDLEWARE ---
   app.use((req, res, next) => {
