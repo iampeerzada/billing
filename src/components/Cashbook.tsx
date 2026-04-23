@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Download, Printer, Filter, Wallet, Plus, X } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function Cashbook() {
   const [accountType, setAccountType] = useState('all');
@@ -15,13 +16,78 @@ export function Cashbook() {
     amount: ''
   });
 
-  const [transactions, setTransactions] = useState([
-    { id: 1, date: '2023-10-01', particulars: 'Opening Balance', type: 'Opening', vchNo: '-', receipt: 50000, payment: 0, balance: 50000 },
-    { id: 2, date: '2023-10-02', particulars: 'Cash Sales', type: 'Receipt', vchNo: 'REC-042', receipt: 15000, payment: 0, balance: 65000 },
-    { id: 3, date: '2023-10-05', particulars: 'Office Expenses', type: 'Payment', vchNo: 'PAY-011', receipt: 0, payment: 2500, balance: 62500 },
-    { id: 4, date: '2023-10-08', particulars: 'Payment to Supplier (ABC Corp)', type: 'Payment', vchNo: 'PAY-012', receipt: 0, payment: 20000, balance: 42500 },
-    { id: 5, date: '2023-10-12', particulars: 'Received from Customer (Tech Ltd)', type: 'Receipt', vchNo: 'REC-043', receipt: 30000, payment: 0, balance: 72500 },
-  ]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+        if (!activeTenant.id) return;
+
+        const headers = { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id };
+        
+        // Fetch invoices (Receipts) and purchases (Payments)
+        const [invRes, purRes] = await Promise.all([
+          fetch(`${API_URL}/api/invoices`, { headers }),
+          fetch(`${API_URL}/api/purchases`, { headers })
+        ]);
+
+        const allTrans: any[] = [];
+        if (invRes.ok) {
+          const invoices = await invRes.json();
+          invoices.filter((i: any) => i.status === 'Paid').forEach((inv: any) => {
+            allTrans.push({
+              id: `inv-${inv.id}`,
+              date: inv.date,
+              type: 'Receipt',
+              particulars: `Sales - ${inv.customerData?.name} (${inv.invoiceNumber})`,
+              vchNo: inv.invoiceNumber,
+              receipt: Number(inv.total),
+              payment: 0,
+              balance: 0 // Will calculate
+            });
+          });
+        }
+
+        if (purRes.ok) {
+          const purchases = await purRes.json();
+          purchases.filter((p: any) => p.status === 'Paid').forEach((pur: any) => {
+            allTrans.push({
+              id: `pur-${pur.id}`,
+              date: pur.date,
+              type: 'Payment',
+              particulars: `Purchase - ${pur.vendorData?.name} (${pur.billNumber})`,
+              vchNo: pur.billNumber,
+              receipt: 0,
+              payment: Number(pur.total),
+              balance: 0 // Will calculate
+            });
+          });
+        }
+
+        // Sort by date ascending to calculate running balance
+        allTrans.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        // Note: For a real cashbook we might fetch manual entries as well. Here we just calculate balance based on fetched.
+        let currentBalance = 0; 
+        allTrans.forEach(t => {
+          if (t.type === 'Receipt') currentBalance += t.receipt;
+          else currentBalance -= t.payment;
+          t.balance = currentBalance;
+        });
+
+        setTransactions(allTrans);
+      } catch (err) {
+        console.error("Failed to fetch cashbook", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTransactions();
+  }, [dateRange]);
 
   const handleAddEntry = () => {
     if (!newEntry.particulars || !newEntry.amount || Number(newEntry.amount) <= 0) {
@@ -182,7 +248,9 @@ export function Cashbook() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {transactions.map((txn) => (
+              {transactions.length === 0 ? (
+                <tr><td colSpan={7} className="p-8 text-center text-slate-500">No cashbook transactions found.</td></tr>
+              ) : transactions.map((txn) => (
                 <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors text-sm">
                   <td className="p-4 text-slate-600">{txn.date}</td>
                   <td className="p-4 font-medium text-slate-900">{txn.particulars}</td>

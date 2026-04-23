@@ -3,7 +3,7 @@ import { Search, Filter, Download, History, FileText, CheckCircle, Clock } from 
 import { API_URL } from '../config';
 
 interface CustomerHistoryProps {
-  onInvoiceClick?: (invoiceId: string) => void;
+  onInvoiceClick?: (invoiceId: string, docType?: string) => void;
 }
 
 export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
@@ -167,7 +167,7 @@ export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
                       </td>
                       <td 
                         className="p-4 text-blue-600 hover:underline cursor-pointer font-medium"
-                        onClick={() => onInvoiceClick && onInvoiceClick(item.id)}
+                        onClick={() => onInvoiceClick && onInvoiceClick(item.id, item.type || 'invoice')}
                       >
                         {item.invoiceNumber || item.number || item.id}
                       </td>

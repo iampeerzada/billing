@@ -1,14 +1,62 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertTriangle, ShoppingCart, Search, Filter, Download } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function LowStockAlert() {
-  // Mock data for low stock items
-  const lowStockItems = [
-    { id: 1, name: 'Printer Paper A4', category: 'Office Supplies', currentStock: 2, minStock: 10, unit: 'box', status: 'critical' },
-    { id: 2, name: 'Blue Ink Cartridge', category: 'Electronics', currentStock: 1, minStock: 5, unit: 'pcs', status: 'critical' },
-    { id: 3, name: 'Premium Coffee Beans', category: 'Pantry', currentStock: 3, minStock: 5, unit: 'kg', status: 'low' },
-    { id: 4, name: 'Packaging Tape', category: 'Shipping', currentStock: 8, minStock: 15, unit: 'pcs', status: 'low' },
-  ];
+  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+        
+        const res = await fetch(`${API_URL}/api/items`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Filter items with less than 10 stock
+          const lowStock = data.filter((item: any) => (item.currentStock || 0) < 10).map((item: any) => ({
+             id: item.id,
+             name: item.name,
+             category: item.hsn || 'General',
+             currentStock: item.currentStock || 0,
+             minStock: 10,
+             unit: item.unit || 'pcs',
+             status: (item.currentStock || 0) <= 2 ? 'critical' : 'low'
+          }));
+          setLowStockItems(lowStock);
+        }
+      } catch (err) {
+        console.error("Failed to fetch stock for alerts", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchItems();
+  }, []);
+
+  const handleExportCSV = () => {
+    const headers = ['Item Name', 'Category', 'Current Stock', 'Min Required', 'Unit', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...lowStockItems.map(item => `"${item.name}","${item.category}",${item.currentStock},${item.minStock},${item.unit},${item.status}`)
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `low_stock_report.csv`;
+    link.click();
+  };
+
+  if (loading) return <div className="p-8 text-center text-slate-500">Loading stock alerts...</div>;
+
+  const criticalCount = lowStockItems.filter(i => i.status === 'critical').length;
+  const lowCount = lowStockItems.filter(i => i.status === 'low').length;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -19,7 +67,7 @@ export function LowStockAlert() {
         </div>
         <div className="flex gap-3">
           <button 
-            onClick={() => alert('Exporting Low Stock List...')}
+            onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
           >
             <Download size={18} /> Export List
@@ -28,14 +76,14 @@ export function LowStockAlert() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-rose-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
             <AlertTriangle size={24} />
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Critical Stock</p>
-            <p className="text-2xl font-bold text-slate-900">2 Items</p>
+            <p className="text-2xl font-bold text-slate-900">{criticalCount} Items</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm flex items-center gap-4">
@@ -44,16 +92,7 @@ export function LowStockAlert() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Low Stock</p>
-            <p className="text-2xl font-bold text-slate-900">2 Items</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-            <ShoppingCart size={24} />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-slate-500">Suggested Order Value</p>
-            <p className="text-2xl font-bold text-slate-900">₹ 12,450</p>
+            <p className="text-2xl font-bold text-slate-900">{lowCount} Items</p>
           </div>
         </div>
       </div>
@@ -92,7 +131,9 @@ export function LowStockAlert() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {lowStockItems.map((item) => (
+              {lowStockItems.length === 0 ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No low stock items found.</td></tr>
+              ) : lowStockItems.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/50 transition-colors text-sm">
                   <td className="p-4 font-medium text-slate-900">{item.name}</td>
                   <td className="p-4 text-slate-600">{item.category}</td>

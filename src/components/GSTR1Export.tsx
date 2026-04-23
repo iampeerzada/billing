@@ -3,7 +3,7 @@ import { Download, FileJson, FileSpreadsheet, Calendar, Filter, FileText } from 
 import { API_URL } from '../config';
 
 interface GSTR1ExportProps {
-  onInvoiceClick?: (id: string) => void;
+  onInvoiceClick?: (id: string, type?: string) => void;
 }
 
 export function GSTR1Export({ onInvoiceClick }: GSTR1ExportProps) {
@@ -219,7 +219,7 @@ export function GSTR1Export({ onInvoiceClick }: GSTR1ExportProps) {
                       <td className="p-4 text-slate-900">{row.name}</td>
                       <td 
                         className="p-4 text-blue-600 font-bold hover:underline cursor-pointer"
-                        onClick={() => onInvoiceClick && onInvoiceClick(row.id)}
+                        onClick={() => onInvoiceClick && onInvoiceClick(row.id, row.type || 'invoice')}
                       >
                         {row.invoiceNo}
                       </td>
@@ -255,7 +255,7 @@ export function GSTR1Export({ onInvoiceClick }: GSTR1ExportProps) {
                     <tr key={row.id} className="hover:bg-slate-50/50 text-sm">
                       <td 
                         className="p-4 text-blue-600 font-bold hover:underline cursor-pointer"
-                        onClick={() => onInvoiceClick && onInvoiceClick(row.id)}
+                        onClick={() => onInvoiceClick && onInvoiceClick(row.id, row.type || 'invoice')}
                       >
                         {row.invoiceNo}
                       </td>

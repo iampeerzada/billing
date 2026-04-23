@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'superadmin';
-export type AppRoute = 'login' | 'app';
+export type AppRoute = 'home' | 'login' | 'app';
 
 export interface InvoiceItem {
   id: string;

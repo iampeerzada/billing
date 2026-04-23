@@ -1,15 +1,58 @@
-import React from 'react';
-import { Clock, AlertCircle, Search, Filter, Download, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, AlertCircle, Search, Filter, Download, CheckCircle2, FileText } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function BatchExpiry() {
-  // Mock data for batches
-  const batches = [
-    { id: 1, item: 'Amoxicillin 250mg', batch: 'AMX-2023-A', mfgDate: '2023-01-10', expDate: '2023-11-15', stock: 150, unit: 'box', status: 'expired' },
-    { id: 2, item: 'Milk Powder 1kg', batch: 'MP-8821', mfgDate: '2023-05-20', expDate: '2023-11-30', stock: 45, unit: 'kg', status: 'expiring-soon' },
-    { id: 3, item: 'Organic Honey', batch: 'OH-992', mfgDate: '2023-08-01', expDate: '2023-12-15', stock: 120, unit: 'pcs', status: 'expiring-soon' },
-    { id: 4, item: 'Pain Relief Spray', batch: 'PRS-101', mfgDate: '2023-09-15', expDate: '2025-09-14', stock: 300, unit: 'pcs', status: 'safe' },
-    { id: 5, item: 'Whole Wheat Bread', batch: 'WWB-02', mfgDate: '2023-10-25', expDate: '2023-10-30', stock: 20, unit: 'pack', status: 'expired' },
-  ];
+  const [batches, setBatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+        if (!activeTenant.id) return;
+        
+        const res = await fetch(`${API_URL}/api/items`, {
+          headers: {
+            'x-tenant-id': activeTenant.id,
+            'x-company-id': activeCompany.id
+          }
+        });
+        
+        if (res.ok) {
+          const items = await res.json();
+          // Filter items that might actually have batch/expiry info, or are just regular items
+          // Since basic items table doesn't strictly have expDate, we map what we can.
+          // In a real app we'd have a batches table. Here we mock from items if they had expDate fields.
+          const itemsWithExpiry = items
+              .filter((i: any) => i.expDate) // Only show items with expiry dates
+              .map((i: any) => {
+                const isExpired = new Date(i.expDate) < new Date();
+                const daysToExpiry = Math.ceil((new Date(i.expDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                return {
+                  id: i.id,
+                  item: i.name,
+                  batch: i.batchNumber || 'N/A',
+                  mfgDate: i.mfgDate || 'N/A',
+                  expDate: i.expDate,
+                  stock: i.currentStock,
+                  unit: i.unit,
+                  status: isExpired ? 'expired' : daysToExpiry <= 30 ? 'expiring-soon' : 'safe'
+                };
+              });
+          setBatches(itemsWithExpiry);
+        }
+      } catch (err) {
+        console.error("Failed to fetch batches", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBatches();
+  }, []);
+
 
   const handleExportCSV = () => {
     const headers = ['Item Name', 'Batch No.', 'Mfg Date', 'Expiry Date', 'Remaining Stock', 'Unit', 'Status'];
@@ -51,7 +94,7 @@ export function BatchExpiry() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Expired Items</p>
-            <p className="text-2xl font-bold text-slate-900">2 Batches</p>
+            <p className="text-2xl font-bold text-slate-900">{batches.filter(b => b.status === 'expired').length} Batches</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm flex items-center gap-4">
@@ -60,7 +103,7 @@ export function BatchExpiry() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Expiring in 30 Days</p>
-            <p className="text-2xl font-bold text-slate-900">2 Batches</p>
+            <p className="text-2xl font-bold text-slate-900">{batches.filter(b => b.status === 'expiring-soon').length} Batches</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-4">
@@ -69,7 +112,7 @@ export function BatchExpiry() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Safe Batches</p>
-            <p className="text-2xl font-bold text-slate-900">1 Batch</p>
+            <p className="text-2xl font-bold text-slate-900">{batches.filter(b => b.status === 'safe').length} Batches</p>
           </div>
         </div>
       </div>
@@ -114,7 +157,19 @@ export function BatchExpiry() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {batches.map((batch) => (
+              {loading ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading batches...</td></tr>
+              ) : batches.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    <div className="flex flex-col items-center max-w-xs mx-auto">
+                      <FileText size={48} className="text-slate-300 mb-4" />
+                      <p className="font-bold text-slate-600 text-lg mb-2">No expiring items found.</p>
+                      <p className="text-sm">You haven't tracked any batch/expiry data yet.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : batches.map((batch) => (
                 <tr key={batch.id} className="hover:bg-slate-50/50 transition-colors text-sm">
                   <td className="p-4 font-medium text-slate-900">{batch.item}</td>
                   <td className="p-4 text-slate-600 font-mono text-xs">{batch.batch}</td>

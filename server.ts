@@ -38,6 +38,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     tenantId TEXT NOT NULL,
     companyId TEXT NOT NULL,
+    type TEXT DEFAULT 'invoice',
     invoiceNumber TEXT NOT NULL,
     date TEXT NOT NULL,
     customerData TEXT NOT NULL,
@@ -293,6 +294,22 @@ async function startServer() {
           return item;
         });
         res.json(formatted);
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    // GET Single
+    app.get(`/api/${pathBase}/:id`, (req, res) => {
+      const tId = getTenantId(req), cId = getCompanyId(req);
+      if (!tId || !cId) return res.status(400).json({ error: "Missing Isolation Headers" });
+      try {
+        const item = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND tenantId = ? AND companyId = ?`).get(req.params.id, tId, cId) as any;
+        if (item) {
+          const formatted = { ...item };
+          jsonFields.forEach(f => { if (formatted[f]) formatted[f] = JSON.parse(formatted[f]); });
+          res.json(formatted);
+        } else {
+          res.status(404).json({ error: "Not found" });
+        }
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
 

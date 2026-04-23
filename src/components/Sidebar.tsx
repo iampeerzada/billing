@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, FileText, Settings, LogOut, Crown, ChevronDown, ChevronRight, Receipt, Calculator, Users, Wallet, TrendingUp, Scale, Package, AlertTriangle, Clock, History, IndianRupee, ShieldAlert, MessageCircle, FileJson, Cloud, Box, Building2, X } from 'lucide-react';
+import { API_URL } from '../config';
 
 interface SidebarProps {
   activeTab: string;
@@ -19,9 +20,42 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   const [isCustomerOpen, setIsCustomerOpen] = useState(false);
   const [isTaxOpen, setIsTaxOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
 
   const activeCompanyStr = localStorage.getItem('active_company');
   const activeCompany = activeCompanyStr ? JSON.parse(activeCompanyStr) : null;
+
+  useEffect(() => {
+     if (tenant?.id) {
+       fetch(`${API_URL}/api/companies/${tenant.id}`)
+         .then(res => res.json())
+         .then(data => {
+            if (data && Array.isArray(data)) {
+               setCompanies(data);
+               if (activeCompany) {
+                 setSelectedCompanyId(activeCompany.id);
+               } else if (data.length > 0) {
+                 setSelectedCompanyId(data[0].id);
+                 localStorage.setItem('active_company', JSON.stringify(data[0]));
+                 window.dispatchEvent(new Event('storage'));
+               }
+            }
+         }).catch(err => console.log('Error fetching companies', err));
+     }
+  }, [tenant?.id]);
+
+  const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const cid = e.target.value;
+    const comp = companies.find(c => c.id === cid);
+    if (comp) {
+      setSelectedCompanyId(comp.id);
+      localStorage.setItem('active_company', JSON.stringify(comp));
+      window.dispatchEvent(new Event('storage'));
+      window.location.reload(); // Force reload to apply company context globally
+    }
+  };
 
   const billingItems = [
     { id: 'invoice', icon: FileText, label: 'Invoice Builder' },
@@ -103,15 +137,21 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
           </button>
         </div>
 
-        {activeCompany && (
-          <div className="mx-4 mt-4 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50 group hover:border-blue-500/50 transition-colors cursor-pointer" onClick={() => setActiveTab('settings')}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <Building2 size={16} className="text-blue-500 shrink-0" />
-                <span className="text-xs font-black text-white truncate italic uppercase tracking-wider">{activeCompany.name}</span>
-              </div>
-              <Settings size={12} className="text-slate-500 group-hover:text-blue-400 transition-colors" />
+        {companies.length > 0 && (
+          <div className="mx-4 mt-4 p-3 bg-slate-800/40 rounded-xl border border-slate-700/50">
+            <div className="flex items-center gap-2 mb-2">
+               <Building2 size={16} className="text-blue-500 shrink-0" />
+               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Company</span>
             </div>
+            <select 
+              value={selectedCompanyId} 
+              onChange={handleCompanyChange}
+              className="w-full bg-slate-900 border border-slate-700 text-white text-sm rounded-lg p-2 outline-none focus:border-blue-500"
+            >
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
         )}
 

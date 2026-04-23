@@ -27,6 +27,7 @@ import { GeneralSettings } from './components/GeneralSettings';
 import { Subscription } from './components/Subscription';
 import { SuperadminPanel } from './components/SuperadminPanel';
 import { InvoiceList } from './components/InvoiceList';
+import { Home } from './components/Home';
 import { UserRole, AppRoute } from './types';
 import { API_URL } from './config';
 
@@ -34,10 +35,11 @@ export default function App() {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [appRoute, setAppRoute] = useState<AppRoute>('login');
+  const [appRoute, setAppRoute] = useState<AppRoute>('home');
   const [activeTenant, setActiveTenant] = useState<any>(null);
   const [isExpired, setIsExpired] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isLoginSignup, setIsLoginSignup] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem('isAuthenticated') === 'true';
@@ -95,22 +97,48 @@ export default function App() {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUserRole(null);
-    setAppRoute('login');
+    setAppRoute('home');
     setActiveTenant(null);
     localStorage.clear();
   };
 
-  if (appRoute === 'login') {
-    return <Login onLogin={handleLogin} onBackToHome={() => {}} />;
+  if (appRoute === 'home') {
+    return <Home onNavigation={(route) => {
+      setAppRoute('login');
+      setIsLoginSignup(route === 'signup');
+    }} />;
   }
+
+  if (appRoute === 'login') {
+    return <Login onLogin={handleLogin} defaultIsSignUp={isLoginSignup} onBackToHome={() => setAppRoute('home')} />;
+  }
+
+  const handleTabChange = (tab: string) => {
+    // If navigating to create a new doc, explicitly clear the edit state unless we just set it
+    if (['dashboard', 'invoice', 'estimate', 'purchase', 'credit-debit', 'party-ledger', 'cashbook', 'profit-loss', 'balance-sheet', 'item-master', 'all-invoices', 'superadmin', 'settings'].includes(tab) && document.activeElement?.tagName !== 'BUTTON') {
+        // Just clear it on normal navigation
+    }
+    
+    setActiveTab(tab);
+    localStorage.setItem('activeTab', tab);
+  };
+  
+  // Actually, let's just clear it if we explicitly click the sidebar links:
+  const handleSidebarTabChange = (tab: string) => {
+    if (['dashboard', 'invoice', 'estimate', 'purchase', 'credit-debit'].includes(tab)) {
+      localStorage.removeItem('edit_invoice_id');
+    }
+    setActiveTab(tab);
+    localStorage.setItem('activeTab', tab);
+  };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard setActiveTab={setActiveTab} />;
       case 'invoice': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="invoice" />;
-      case 'estimate': return <EstimateBuilder onCancel={() => setActiveTab('dashboard')} />;
-      case 'purchase': return <PurchaseBillBuilder onCancel={() => setActiveTab('dashboard')} />;
-      case 'credit-debit': return <CreditDebitNoteBuilder onCancel={() => setActiveTab('dashboard')} />;
+      case 'estimate': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="estimate" />;
+      case 'purchase': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="purchase" />;
+      case 'credit-debit': return <InvoiceBuilder onCancel={() => setActiveTab('dashboard')} type="credit-debit" />;
       case 'party-ledger': return <PartyLedger />;
       case 'cashbook': return <Cashbook />;
       case 'profit-loss': return <ProfitLoss />;
@@ -120,18 +148,38 @@ export default function App() {
       case 'low-stock-alert': return <LowStockAlert />;
       case 'batch-expiry': return <BatchExpiry />;
       case 'customer-history': 
-        return <CustomerHistory onInvoiceClick={(id) => {
+        return <CustomerHistory onInvoiceClick={(id, docType) => {
           localStorage.setItem('edit_invoice_id', id);
-          setActiveTab('invoice');
+          if (docType) {
+             const tabMap: Record<string, string> = {
+              'estimate': 'estimate',
+              'purchase': 'purchase',
+              'credit-debit': 'credit-debit',
+              'invoice': 'invoice'
+            };
+            setActiveTab(tabMap[docType] || 'invoice');
+          } else {
+             setActiveTab('invoice');
+          }
         }} />;
       case 'vendor-master': return <VendorMaster />;
       case 'outstanding-payments': return <OutstandingPayments />;
       case 'credit-limit': return <CreditLimit />;
       case 'auto-reminder': return <AutoReminder />;
       case 'gstr1-export': 
-        return <GSTR1Export onInvoiceClick={(id) => {
+        return <GSTR1Export onInvoiceClick={(id, docType) => {
           localStorage.setItem('edit_invoice_id', id);
-          setActiveTab('invoice');
+          if (docType) {
+             const tabMap: Record<string, string> = {
+              'estimate': 'estimate',
+              'purchase': 'purchase',
+              'credit-debit': 'credit-debit',
+              'invoice': 'invoice'
+            };
+            setActiveTab(tabMap[docType] || 'invoice');
+          } else {
+             setActiveTab('invoice');
+          }
         }} />;
       case 'gstr3b-report': return <GSTReportPlaceholder title="GSTR-3B Summary Return" description="GSTR-3B is a self-declared summary GST return filed every month. This module will automatically calculate total tax payable and ITC claims." />;
       case 'gstr2b-report': return <GSTReportPlaceholder title="GSTR-2B Auto-generated Purchase Report" description="An auto-drafted ITC statement matching your purchases. View eligible and ineligible input tax credit automatically." />;
@@ -142,7 +190,22 @@ export default function App() {
       case 'settings': return <GeneralSettings />;
       case 'subscription': return <Subscription tenant={activeTenant} />;
       case 'superadmin': return <SuperadminPanel />;
-      case 'all-invoices': return <InvoiceList onNewInvoice={() => setActiveTab('invoice')} />;
+      case 'all-invoices': return <InvoiceList 
+        onNewInvoice={() => {
+          localStorage.removeItem('edit_invoice_id');
+          setActiveTab('invoice');
+        }}
+        onInvoiceClick={(id, docType) => {
+          localStorage.setItem('edit_invoice_id', id);
+          const tabMap: Record<string, string> = {
+            'estimate': 'estimate',
+            'purchase': 'purchase',
+            'credit-debit': 'credit-debit',
+            'invoice': 'invoice'
+          };
+          setActiveTab(tabMap[docType || 'invoice'] || 'invoice');
+        }}
+      />;
       default: return <Dashboard setActiveTab={setActiveTab} />;
     }
   };
@@ -151,10 +214,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          localStorage.setItem('activeTab', tab);
-        }} 
+        setActiveTab={handleSidebarTabChange} 
         userRole={userRole}
         onLogout={handleLogout}
         isExpired={isExpired}
@@ -164,7 +224,7 @@ export default function App() {
       />
       
       <div className="flex-1 flex flex-col min-w-0 lg:ml-64 relative">
-        <Topbar setActiveTab={setActiveTab} />
+        <Topbar setActiveTab={handleSidebarTabChange} />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
           <div className="max-w-7xl mx-auto animate-in fade-in duration-500">

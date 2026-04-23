@@ -162,8 +162,46 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
         console.error('Failed to fetch items');
       }
     };
+    
+    const loadExistingInvoice = async () => {
+      const editId = localStorage.getItem('edit_invoice_id');
+      if (!editId || !activeTenant.id) return;
+      
+      const apiEndpoint = type === 'estimate' ? 'estimates' : type === 'purchase' ? 'purchases' : 'invoices';
+      
+      try {
+        const res = await fetch(`${API_URL}/api/${apiEndpoint}/${editId}`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          console.log("LOADED DATA:", data);
+          
+          if (data.businessProfile) setBusinessProfile(data.businessProfile);
+          if (data.customerData) setCustomer(data.customerData);
+          if (data.vendorData) setCustomer(data.vendorData);
+          if (data.itemsData) setItems(data.itemsData);
+          if (data.status) setStatus(data.status);
+          
+          setInvoiceDetails({
+            number: data.invoiceNumber || data.number || '',
+            date: data.date || new Date().toISOString().split('T')[0],
+            noteType: data.noteType || 'Credit Note',
+            originalInvoiceNo: data.originalInvoiceNo || '',
+            originalInvoiceDate: data.originalInvoiceDate || '',
+            reason: data.reason || ''
+          });
+        } else {
+          console.error("FAILED TO LOAD DOC:", await res.text());
+        }
+      } catch (err) {
+        console.error('Failed to load document:', err);
+      }
+    };
+
     fetchItems();
-  }, []);
+    loadExistingInvoice();
+  }, [type]);
 
   const handleNameChange = (id: string, value: string) => {
     updateItem(id, 'name', value);
@@ -406,8 +444,49 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
       'x-company-id': activeCompany.id as string
     };
 
+    const isEdit = !!localStorage.getItem('edit_invoice_id');
+    const invoiceId = localStorage.getItem('edit_invoice_id') || Date.now().toString();
+
+    // Format API Payload according to strict schema
+    let apiPayload: any = {
+      id: invoiceId,
+      date: invoiceDetails.date,
+      itemsData: items,
+      status: status
+    };
+
+    if (type === 'invoice' || type === 'credit-debit') {
+       apiPayload = {
+         ...apiPayload,
+         invoiceNumber: invoiceDetails.number,
+         customerData: customer,
+         taxType: isInterState ? 'INTER' : 'INTRA',
+         subtotal: totals.subtotal,
+         cgst: totals.cgst,
+         sgst: totals.sgst,
+         igst: totals.igst,
+         total: totals.total,
+         type: type // Wait! type isn't a column. I should add a column instead in server.ts OR just ignore it. I will ignore it since credit notes can be stored elsewhere or we distinguish them later. Actually let's just save.
+       };
+    } else if (type === 'estimate') {
+       apiPayload = {
+         ...apiPayload,
+         estimateNumber: invoiceDetails.number,
+         customerData: customer,
+         taxType: isInterState ? 'INTER' : 'INTRA',
+         total: totals.total
+       };
+    } else if (type === 'purchase') {
+       apiPayload = {
+         ...apiPayload,
+         billNumber: invoiceDetails.number,
+         vendorData: customer, // vendor stored in customer obj locally
+         total: totals.total
+       };
+    }
+
     const invoice = {
-      id: Date.now().toString(),
+      id: invoiceId,
       type: type,
       ...invoiceDetails,
       invoiceNumber: invoiceDetails.number,
@@ -429,7 +508,7 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
       const response = await fetch(`${API_URL}/api/${apiEndpoint}`, {
         method: 'POST',
         headers: isolationHeaders,
-        body: JSON.stringify(invoice)
+        body: JSON.stringify(apiPayload)
       });
 
       if (!response.ok) {
@@ -440,10 +519,11 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
       // Keep localStorage for backward compatibility/offline use
       const storageKey = type === 'estimate' ? 'estimates' : type === 'purchase' ? 'purchases' : type === 'credit-debit' ? 'credit_debit_notes' : 'invoices';
       const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      localStorage.setItem(storageKey, JSON.stringify([...existing, invoice]));
+      const filtered = existing.filter((e: any) => e.id !== invoiceId);
+      localStorage.setItem(storageKey, JSON.stringify([...filtered, invoice]));
 
-      // Modify Item Master Stock if Purchase or Invoice
-      if (type === 'invoice' || type === 'purchase') {
+      // Modify Item Master Stock if Purchase or Invoice - ONLY ON NEW CREATION for simplicity
+      if (!isEdit && (type === 'invoice' || type === 'purchase')) {
         const itemResponse = await fetch(`${API_URL}/api/items`, { headers: isolationHeaders });
         if (itemResponse.ok) {
           const savedItems = await itemResponse.json();
@@ -970,10 +1050,10 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                           value={item.name}
                           onChange={(e) => handleNameChange(item.id, e.target.value)}
                           placeholder="Item Name / Title"
-                          list="item-list-datalist"
+                          list={`item-list-datalist-${item.id}`}
                           className="w-full bg-transparent border-none focus:ring-0 p-0 font-medium text-slate-900 placeholder-slate-300 mb-1"
                         />
-                        <datalist id="item-list-datalist">
+                        <datalist id={`item-list-datalist-${item.id}`}>
                           {itemMasterData.map(im => <option key={im.id} value={im.name} />)}
                         </datalist>
                         <input

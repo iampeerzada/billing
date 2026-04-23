@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Filter, Download, AlertCircle, MessageCircle, IndianRupee, X } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function OutstandingPayments() {
   const [agingFilter, setAgingFilter] = useState('all');
@@ -9,12 +10,47 @@ export function OutstandingPayments() {
   const [paymentModal, setPaymentModal] = useState({ isOpen: false, id: -1, balance: 0, invoice: '' });
   const [paymentData, setPaymentData] = useState({ amount: '', date: new Date().toISOString().split('T')[0], method: 'Online / Gateway', reference: '' });
 
-  const [outstanding, setOutstanding] = useState([
-    { id: 1, customer: 'Tech Solutions Ltd', invoice: 'INV-102', date: '2023-09-15', dueDate: '2023-10-15', amount: 25000, balance: 10000, daysOverdue: 16 },
-    { id: 2, customer: 'Global Enterprises', invoice: 'INV-095', date: '2023-08-20', dueDate: '2023-09-20', amount: 45000, balance: 45000, daysOverdue: 41 },
-    { id: 3, customer: 'ABC Corp', invoice: 'INV-108', date: '2023-10-25', dueDate: '2023-11-25', amount: 12000, balance: 12000, daysOverdue: -25 }, // Not overdue yet
-    { id: 4, customer: 'Local Retailers', invoice: 'INV-082', date: '2023-07-10', dueDate: '2023-08-10', amount: 8500, balance: 8500, daysOverdue: 82 },
-  ]);
+  const [outstanding, setOutstanding] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+        if (!activeTenant.id) return;
+
+        const res = await fetch(`${API_URL}/api/invoices`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const unpaid = data.filter((inv: any) => inv.status !== 'Paid' && inv.status !== 'Completed').map((inv: any) => {
+            const dueDateStr = inv.dueDate || inv.date;
+            const dueTime = new Date(dueDateStr).getTime();
+            const daysOffset = Math.floor((Date.now() - dueTime) / (1000 * 3600 * 24));
+            return {
+              id: inv.id,
+              customer: inv.customerData?.name || 'Walk-in',
+              invoice: inv.invoiceNumber,
+              date: inv.date,
+              dueDate: dueDateStr,
+              amount: inv.total,
+              balance: inv.total,
+              daysOverdue: daysOffset,
+              phone: inv.customerData?.phone
+            };
+          });
+          setOutstanding(unpaid);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInvoices();
+  }, []);
 
   const handleOpenPayment = (id: number, balance: number, invoice: string) => {
     setPaymentModal({ isOpen: true, id, balance, invoice });

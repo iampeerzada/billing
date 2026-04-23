@@ -4,26 +4,29 @@ import { API_URL } from '../config';
 
 interface InvoiceListProps {
   onNewInvoice: () => void;
+  onInvoiceClick?: (id: string, docType: string) => void;
 }
 
-export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
+export function InvoiceList({ onNewInvoice, onInvoiceClick }: InvoiceListProps) {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('invoice');
 
   useEffect(() => {
-    fetchInvoices();
-  }, []);
+    fetchInvoices(filterType);
+  }, [filterType]);
 
-  const fetchInvoices = async () => {
+  const fetchInvoices = async (type: string) => {
+    setIsLoading(true);
     try {
       const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
       const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
 
       if (!activeTenant.id) return;
 
-      const res = await fetch(`${API_URL}/api/invoices`, {
+      const endpoint = type === 'estimate' ? 'estimates' : type === 'purchase' ? 'purchases' : 'invoices';
+      const res = await fetch(`${API_URL}/api/${endpoint}`, {
         headers: {
           'x-tenant-id': activeTenant.id,
           'x-company-id': activeCompany.id
@@ -34,7 +37,7 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
         const data = await res.json();
         setInvoices(data);
       } else {
-        setError('Failed to fetch invoices');
+        setError('Failed to fetch documents');
       }
     } catch (err) {
       setError('Connection error');
@@ -55,7 +58,9 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/invoices/${id}`, {
+      const endpoint = filterType === 'estimate' ? 'estimates' : filterType === 'purchase' ? 'purchases' : 'invoices';
+
+      const res = await fetch(`${API_URL}/api/${endpoint}/${id}`, {
         method: 'DELETE',
         headers: {
           'x-tenant-id': activeTenant.id,
@@ -73,7 +78,37 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => (inv.type || 'invoice') === filterType);
+  const filteredInvoices = invoices.filter(inv => {
+    if (filterType === 'credit-debit') return inv.type === 'credit-debit';
+    return (inv.type || 'invoice') === filterType || (filterType === 'estimate' && !inv.type) || (filterType === 'purchase' && !inv.type);
+  });
+
+  const getDocNumber = (inv: any) => inv.invoiceNumber || inv.estimateNumber || inv.billNumber || 'Unknown';
+  const getPartyName = (inv: any) => inv.customerData?.name || inv.vendorData?.name || 'Walk-in Party';
+
+  const generateMockPDF = (inv: any) => {
+    // In a real application, you would generate a PDF Blob from HTML or using a library like pdfmake
+    const content = `Invoice Content for ${getDocNumber(inv)}`;
+    const blob = new Blob([content], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${getDocNumber(inv)}.pdf`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const shareViaWhatsApp = (inv: any) => {
+    const phone = inv.customerData?.phone || inv.vendorData?.phone || '';
+    if (!phone) {
+      alert("No phone number available for this party.");
+      return;
+    }
+    const amount = Number(inv.total).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    const typeLabel = inv.type === 'estimate' ? 'Estimate' : inv.type === 'purchase' ? 'Purchase Bill' : 'Invoice';
+    const message = encodeURIComponent(`Hello ${getPartyName(inv)},\n\nPlease find the details for your ${typeLabel} #${getDocNumber(inv)}.\nTotal Amount: ₹${amount}\n\nThank you for your business!`);
+    window.open(`https://wa.me/91${phone}?text=${message}`, '_blank');
+  };
 
   return (
     <div className="space-y-6">
@@ -156,16 +191,16 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
                   <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{inv.invoiceNumber}</span>
+                        <span className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{getDocNumber(inv)}</span>
                         <span className="text-xs text-slate-500 font-medium">{inv.date}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center font-bold text-xs uppercase">
-                          {inv.customerData?.name?.charAt(0) || <User size={14} />}
+                          {getPartyName(inv).charAt(0) || <User size={14} />}
                         </div>
-                        <span className="font-medium text-slate-700">{inv.customerData?.name || 'Walk-in Customer'}</span>
+                        <span className="font-medium text-slate-700">{getPartyName(inv)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-900">
@@ -188,11 +223,23 @@ export function InvoiceList({ onNewInvoice }: InvoiceListProps) {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View details">
+                        <button 
+                          onClick={() => {
+                            const typeStr = inv.type || filterType;
+                            if (onInvoiceClick) onInvoiceClick(inv.id, typeStr);
+                          }}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View details">
                            <Eye size={18} />
                         </button>
-                        <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Download PDF">
+                        <button 
+                          onClick={() => generateMockPDF(inv)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Download PDF">
                           <Download size={18} />
+                        </button>
+                        <button 
+                          onClick={() => shareViaWhatsApp(inv)}
+                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Share via WhatsApp">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" /><path d="M9 10a.5.5 0 0 0 1 0V9a.5.5 0 0 0-1 0v1a5 5 0 0 0 5 5h1a.5.5 0 0 0 0-1h-1a.5.5 0 0 0 0 1" /></svg>
                         </button>
                         <button 
                           onClick={() => handleDelete(inv.id)}

@@ -1,23 +1,100 @@
-import React, { useState } from 'react';
-import { Search, Download, Printer, Filter, Users } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Download, Printer, Filter, Users, FileText } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function PartyLedger() {
   const [partyType, setPartyType] = useState('all');
   const [dateRange, setDateRange] = useState('this-month');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const transactions = [
-    { id: 1, date: '2023-10-01', particulars: 'Opening Balance', type: 'Opening', vchNo: '-', debit: 5000, credit: 0, balance: 5000 },
-    { id: 2, date: '2023-10-05', particulars: 'Sales Invoice', type: 'Sales', vchNo: 'INV-001', debit: 15000, credit: 0, balance: 20000 },
-    { id: 3, date: '2023-10-10', particulars: 'Payment Received', type: 'Receipt', vchNo: 'REC-001', debit: 0, credit: 10000, balance: 10000 },
-    { id: 4, date: '2023-10-15', particulars: 'Sales Invoice', type: 'Sales', vchNo: 'INV-005', debit: 8000, credit: 0, balance: 18000 },
-  ];
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLedger = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+        if (!activeTenant.id) return;
+
+        const headers = { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id };
+        
+        const [invRes, purRes] = await Promise.all([
+          fetch(`${API_URL}/api/invoices`, { headers }),
+          fetch(`${API_URL}/api/purchases`, { headers })
+        ]);
+
+        const allTrans: any[] = [];
+        if (invRes.ok) {
+          const invoices = await invRes.json();
+          invoices.forEach((inv: any) => {
+            allTrans.push({
+              id: `inv-${inv.id}`,
+              date: inv.date,
+              partyType: 'customer',
+              partyName: inv.customerData?.name || 'Walk-in Customer',
+              particulars: 'Sales Account',
+              type: 'Sales',
+              vchNo: inv.invoiceNumber,
+              debit: Number(inv.total), // Receivable (Asset increase)
+              credit: 0,
+              balance: 0 // Will calculate
+            });
+          });
+        }
+
+        if (purRes.ok) {
+          const purchases = await purRes.json();
+          purchases.forEach((pur: any) => {
+            allTrans.push({
+              id: `pur-${pur.id}`,
+              date: pur.date,
+              partyType: 'vendor',
+              partyName: pur.vendorData?.name || 'Walk-in Vendor',
+              particulars: 'Purchase Account',
+              type: 'Purchase',
+              vchNo: pur.billNumber,
+              debit: 0,
+              credit: Number(pur.total), // Payable (Liability increase)
+              balance: 0 // Will calculate
+            });
+          });
+        }
+
+        // Sort by date ascending to calculate running balance
+        allTrans.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        // Note: For a real ledger we compute balance per party. 
+        // Here we'll compute a simple running balance for demonstration.
+        let currentBalance = 0; 
+        allTrans.forEach(t => {
+          currentBalance += t.debit - t.credit;
+          t.balance = currentBalance;
+        });
+
+        setTransactions(allTrans.reverse()); // Show latest first
+      } catch (err) {
+        console.error("Failed to fetch ledger", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLedger();
+  }, [dateRange]);
+
+  const filteredTransactions = transactions.filter(t => {
+    if (partyType !== 'all' && t.partyType !== partyType) return false;
+    if (searchQuery && !t.partyName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
 
   const handleExportCSV = () => {
-    const headers = ['Date', 'Particulars', 'Vch Type', 'Vch No.', 'Debit (In)', 'Credit (Out)', 'Balance'];
+    const headers = ['Date', 'Party', 'Particulars', 'Vch Type', 'Vch No.', 'Debit (In)', 'Credit (Out)', 'Balance'];
     const csvContent = [
       headers.join(','),
-      ...transactions.map(txn => 
-        `${txn.date},"${txn.particulars}",${txn.type},${txn.vchNo},${txn.debit},${txn.credit},${txn.balance}`
+      ...filteredTransactions.map(txn => 
+        `${txn.date},"${txn.partyName}","${txn.particulars}",${txn.type},${txn.vchNo},${txn.debit},${txn.credit},${txn.balance}`
       )
     ].join('\n');
 
@@ -112,16 +189,20 @@ export function PartyLedger() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {transactions.map((txn) => (
+              {loading ? (
+                <tr><td colSpan={7} className="p-8 text-center text-slate-500">Loading transactions...</td></tr>
+              ) : filteredTransactions.length === 0 ? (
+                 <tr><td colSpan={7} className="p-8 text-center text-slate-500">No transactions found.</td></tr>
+              ) : filteredTransactions.map((txn) => (
                 <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors text-sm">
                   <td className="p-4 text-slate-600">{txn.date}</td>
-                  <td className="p-4 font-medium text-slate-900">{txn.particulars}</td>
+                  <td className="p-4 font-medium text-slate-900">{txn.partyName} <br/><span className="text-xs text-slate-400 font-normal">{txn.particulars}</span></td>
                   <td className="p-4 text-slate-600">{txn.type}</td>
                   <td className="p-4 text-slate-600">{txn.vchNo}</td>
                   <td className="p-4 text-right text-slate-900">{txn.debit > 0 ? `₹ ${txn.debit.toLocaleString()}` : '-'}</td>
                   <td className="p-4 text-right text-slate-900">{txn.credit > 0 ? `₹ ${txn.credit.toLocaleString()}` : '-'}</td>
                   <td className="p-4 text-right font-medium text-slate-900">
-                    ₹ {txn.balance.toLocaleString()} {txn.balance > 0 ? 'Dr' : 'Cr'}
+                    ₹ {Math.abs(txn.balance).toLocaleString()} {txn.balance > 0 ? 'Dr' : 'Cr'}
                   </td>
                 </tr>
               ))}
@@ -129,9 +210,17 @@ export function PartyLedger() {
             <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
               <tr>
                 <td colSpan={4} className="p-4 text-right text-slate-700">Closing Total:</td>
-                <td className="p-4 text-right text-slate-900">₹ 28,000</td>
-                <td className="p-4 text-right text-slate-900">₹ 10,000</td>
-                <td className="p-4 text-right text-blue-600">₹ 18,000 Dr</td>
+                <td className="p-4 text-right text-slate-900">
+                  ₹ {filteredTransactions.reduce((acc, curr) => acc + curr.debit, 0).toLocaleString()}
+                </td>
+                <td className="p-4 text-right text-slate-900">
+                  ₹ {filteredTransactions.reduce((acc, curr) => acc + curr.credit, 0).toLocaleString()}
+                </td>
+                <td className="p-4 text-right text-blue-600">
+                  {filteredTransactions.length > 0 
+                     ? `₹ ${Math.abs(filteredTransactions[0].balance).toLocaleString()} ${filteredTransactions[0].balance > 0 ? 'Dr' : 'Cr'}` 
+                     : '₹ 0'}
+                </td>
               </tr>
             </tfoot>
           </table>

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Printer, Scale, ChevronDown, ChevronRight } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function BalanceSheet() {
-  const [asOfDate, setAsOfDate] = useState('2024-03-31');
+  const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     liabilities: true,
     assets: true,
@@ -12,6 +13,72 @@ export function BalanceSheet() {
     currentAssets: true,
   });
 
+  const [financials, setFinancials] = useState({
+    capitalAccount: 0,
+    loans: 0,
+    currentLiabilities: 0,
+    totalLiabilities: 0,
+    fixedAssets: 0,
+    currentAssets: 0,
+    totalAssets: 0
+  });
+
+  useEffect(() => {
+    const fetchBalanceSheet = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+        if (!activeTenant.id) return;
+
+        const headers = { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id };
+        
+        const [invRes, purRes] = await Promise.all([
+          fetch(`${API_URL}/api/invoices`, { headers }),
+          fetch(`${API_URL}/api/purchases`, { headers })
+        ]);
+
+        let totalInvoices = 0;
+        if (invRes.ok) {
+          const invoices = await invRes.json();
+          totalInvoices = invoices.reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
+        }
+
+        let totalPurchases = 0;
+        if (purRes.ok) {
+          const purchases = await purRes.json();
+          totalPurchases = purchases.reduce((sum: number, pur: any) => sum + Number(pur.total || 0), 0);
+        }
+
+        const currentAssets = totalInvoices; // Simplification: Sales treated as Cash/AR
+        const currentLiabilities = totalPurchases; // Simplification: Purchases treated as AP
+        
+        // Let's create an arbitrary balanced capital/profit to make the sheet balance
+        const netProfit = currentAssets - currentLiabilities;
+        const capitalAccount = netProfit > 0 ? netProfit : 0;
+        const loans = netProfit < 0 ? Math.abs(netProfit) : 0;
+        
+        const totalAssetsValue = currentAssets;
+        const totalLiabilitiesValue = currentLiabilities + capitalAccount + loans;
+
+        setFinancials({
+          capitalAccount,
+          loans,
+          currentLiabilities,
+          totalLiabilities: totalLiabilitiesValue,
+          fixedAssets: 0,
+          currentAssets: currentAssets,
+          totalAssets: totalAssetsValue
+        });
+
+      } catch (err) {
+        console.error("Failed to fetch balance sheet", err);
+      }
+    };
+    
+    fetchBalanceSheet();
+  }, [asOfDate]);
+
   const toggleSection = (section: string) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
@@ -19,14 +86,14 @@ export function BalanceSheet() {
   const handleExportCSV = () => {
     const csvContent = "Account Name,Amount (RS)\n" +
       "Liabilities & Capital,\n" +
-      "Capital Account,1550000\n" +
-      "Loans (Liability),500000\n" +
-      "Current Liabilities,380000\n" +
-      "Total Liabilities,2430000\n\n" +
+      `Capital Account,${financials.capitalAccount}\n` +
+      `Loans (Liability),${financials.loans}\n` +
+      `Current Liabilities,${financials.currentLiabilities}\n` +
+      `Total Liabilities,${financials.totalLiabilities}\n\n` +
       "Assets,\n" +
-      "Fixed Assets,850000\n" +
-      "Current Assets,1580000\n" +
-      "Total Assets,2430000\n";
+      `Fixed Assets,${financials.fixedAssets}\n` +
+      `Current Assets,${financials.currentAssets}\n` +
+      `Total Assets,${financials.totalAssets}\n`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -80,23 +147,12 @@ export function BalanceSheet() {
                   {expandedSections.capital ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   Capital Account
                 </div>
-                <div className="font-bold text-slate-900">₹ 15,50,000</div>
+                <div className="font-bold text-slate-900">₹ {financials.capitalAccount.toLocaleString('en-IN')}</div>
               </button>
               
               {expandedSections.capital && (
-                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Opening Balance</span>
-                    <span>₹ 10,00,000</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-600 py-1 font-medium">
-                    <span>Add: Net Profit</span>
-                    <span>₹ 7,50,000</span>
-                  </div>
-                  <div className="flex justify-between text-rose-600 py-1 font-medium">
-                    <span>Less: Drawings</span>
-                    <span>(₹ 2,00,000)</span>
-                  </div>
+                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm text-slate-500">
+                  Total Profit: ₹ {financials.capitalAccount.toLocaleString('en-IN')}
                 </div>
               )}
             </div>
@@ -107,13 +163,7 @@ export function BalanceSheet() {
                 <div className="flex items-center gap-2 font-bold text-slate-800 pl-6">
                   Loans (Liability)
                 </div>
-                <div className="font-bold text-slate-900">₹ 5,00,000</div>
-              </div>
-              <div className="pl-10 pr-4 pb-4 space-y-2 text-sm">
-                <div className="flex justify-between text-slate-600 py-1">
-                  <span>Bank Loan (HDFC)</span>
-                  <span>₹ 5,00,000</span>
-                </div>
+                <div className="font-bold text-slate-900">₹ {financials.loans.toLocaleString('en-IN')}</div>
               </div>
             </div>
 
@@ -127,23 +177,12 @@ export function BalanceSheet() {
                   {expandedSections.currentLiabilities ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   Current Liabilities
                 </div>
-                <div className="font-bold text-slate-900">₹ 3,80,000</div>
+                <div className="font-bold text-slate-900">₹ {financials.currentLiabilities.toLocaleString('en-IN')}</div>
               </button>
               
               {expandedSections.currentLiabilities && (
-                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Sundry Creditors (Suppliers)</span>
-                    <span>₹ 2,50,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Duties & Taxes (GST Payable)</span>
-                    <span>₹ 85,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Provisions (Audit Fees)</span>
-                    <span>₹ 45,000</span>
-                  </div>
+                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm text-slate-500">
+                  Purchases (A/P): ₹ {financials.currentLiabilities.toLocaleString('en-IN')}
                 </div>
               )}
             </div>
@@ -151,7 +190,7 @@ export function BalanceSheet() {
 
           <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-between items-center font-bold text-lg mt-auto">
             <span className="text-slate-800">Total Liabilities</span>
-            <span className="text-blue-600">₹ 24,30,000</span>
+            <span className="text-blue-600">₹ {financials.totalLiabilities.toLocaleString('en-IN')}</span>
           </div>
         </div>
 
@@ -172,23 +211,12 @@ export function BalanceSheet() {
                   {expandedSections.fixedAssets ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   Fixed Assets
                 </div>
-                <div className="font-bold text-slate-900">₹ 8,50,000</div>
+                <div className="font-bold text-slate-900">₹ {financials.fixedAssets.toLocaleString('en-IN')}</div>
               </button>
               
               {expandedSections.fixedAssets && (
-                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Computers & Equipment</span>
-                    <span>₹ 3,50,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Furniture & Fixtures</span>
-                    <span>₹ 2,00,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Vehicles</span>
-                    <span>₹ 3,00,000</span>
-                  </div>
+                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm text-slate-500">
+                   ₹ 0
                 </div>
               )}
             </div>
@@ -203,27 +231,12 @@ export function BalanceSheet() {
                   {expandedSections.currentAssets ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   Current Assets
                 </div>
-                <div className="font-bold text-slate-900">₹ 15,80,000</div>
+                <div className="font-bold text-slate-900">₹ {financials.currentAssets.toLocaleString('en-IN')}</div>
               </button>
               
               {expandedSections.currentAssets && (
-                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm">
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Closing Stock</span>
-                    <span>₹ 5,00,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Sundry Debtors (Customers)</span>
-                    <span>₹ 8,50,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Cash-in-Hand</span>
-                    <span>₹ 45,000</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 py-1">
-                    <span>Bank Accounts</span>
-                    <span>₹ 1,85,000</span>
-                  </div>
+                <div className="pl-10 pr-4 pb-4 space-y-2 text-sm text-slate-500">
+                  Sales (A/R & Cash): ₹ {financials.currentAssets.toLocaleString('en-IN')}
                 </div>
               )}
             </div>
@@ -231,7 +244,7 @@ export function BalanceSheet() {
 
           <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-between items-center font-bold text-lg mt-auto">
             <span className="text-slate-800">Total Assets</span>
-            <span className="text-blue-600">₹ 24,30,000</span>
+            <span className="text-blue-600">₹ {financials.totalAssets.toLocaleString('en-IN')}</span>
           </div>
         </div>
       </div>
