@@ -152,26 +152,27 @@ db.exec(`
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 6000;
+  // Use environment port or default to 3000 (AI Studio default)
+  // For your VPS, set the PORT environment variable to 6000
+  const PORT = Number(process.env.PORT) || 3000;
 
-  // Extremely Permissive CORS for Multi-Environment setup
-  app.use(cors({
-    origin: (origin, callback) => {
-      // Allow all origins
-      callback(null, true);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type', 
-      'Authorization', 
-      'x-tenant-id', 
-      'x-company-id'
-    ],
-    credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204
-  }));
-  
+  // --- MANUAL ROBUST CORS MIDDLEWARE ---
+  app.use((req, res, next) => {
+    // Dynamically allow the requesting origin OR just use '*' for maximum compatibility
+    const origin = req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Authorization, x-tenant-id, x-company-id, Accept, Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+
+    // Handle Preflight (CORS handshake)
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+    next();
+  });
+
   app.use(express.json());
 
   // Isolation Debug Middleware
