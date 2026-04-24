@@ -58,7 +58,21 @@ export function ItemMaster() {
   }, []);
 
   const handleSaveItem = async () => {
-    if (!newItem.name || !newItem.price) return;
+    if (!newItem.name || !newItem.price) {
+      alert("Please fill required fields (Name, Price).");
+      return;
+    }
+
+    if (newItem.hsn && !/^\d{4,8}$/.test(newItem.hsn)) {
+      alert("Invalid HSN Code format. HSN code must contain 4 to 8 numeric digits.\nPlease check the HSN code entered.");
+      return;
+    }
+
+    const validGstRates = ['0', '5', '12', '18', '28'];
+    if (newItem.gstRate && !validGstRates.includes(newItem.gstRate.toString().trim())) {
+      alert("Invalid GST Rate. Only 0, 5, 12, 18, and 28 are accepted.");
+      return;
+    }
     
     const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
     const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');

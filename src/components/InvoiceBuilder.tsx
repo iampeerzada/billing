@@ -170,7 +170,11 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
     phone: ""
   });
 
-  const [terms, setTerms] = useState(`1. Goods once sold will not be taken back.\n2. Interest @18% p.a. will be charged if payment is delayed.\n3. Subject to Mumbai Jurisdiction only.`);
+  const [terms, setTerms] = useState(() => {
+    const saved = localStorage.getItem('invoice_template_terms');
+    if (saved) return saved;
+    return `1. Goods once sold will not be taken back.\n2. Interest @18% p.a. will be charged if payment is delayed.\n3. Subject to Mumbai Jurisdiction only.`;
+  });
 
   const [items, setItems] = useState<InvoiceItem[]>([
     { id: '1', name: '', description: '', hsn: '', quantity: 1, price: 0, gstRate: 18 }
@@ -200,15 +204,23 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
   useEffect(() => {
     const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
     const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+    const savedProfile = JSON.parse(localStorage.getItem('invoice_template_profile') || '{}');
 
     if (activeCompany.name) {
       setBusinessProfile(prev => ({
         ...prev,
-        name: activeCompany.name || activeTenant.name || prev.name,
-        gstin: activeCompany.gstin || prev.gstin,
-        address: activeCompany.address || prev.address,
-        email: activeCompany.email || activeTenant.email || prev.email,
-        phone: activeCompany.phone || activeTenant.phone || prev.phone
+        name: savedProfile.name || activeCompany.name || activeTenant.name || prev.name,
+        gstin: savedProfile.gstin || activeCompany.gstin || prev.gstin,
+        state: savedProfile.state || activeCompany.state || prev.state,
+        address: savedProfile.address || activeCompany.address || prev.address,
+        email: savedProfile.email || activeCompany.email || activeTenant.email || prev.email,
+        phone: savedProfile.phone || activeCompany.phone || activeTenant.phone || prev.phone,
+        bankName: savedProfile.bankName || prev.bankName,
+        accountNumber: savedProfile.accountNumber || prev.accountNumber,
+        ifsc: savedProfile.ifsc || prev.ifsc,
+        branch: savedProfile.branch || prev.branch,
+        accountHolderName: savedProfile.accountHolderName || prev.accountHolderName,
+        logo: savedProfile.logo || prev.logo
       }));
     }
 
@@ -362,6 +374,14 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
         };
     }
   };
+
+  useEffect(() => {
+    localStorage.setItem('invoice_template_terms', terms);
+  }, [terms]);
+
+  useEffect(() => {
+    localStorage.setItem('invoice_template_profile', JSON.stringify(businessProfile));
+  }, [businessProfile]);
 
   const [isGstInvoice, setIsGstInvoice] = useState(true);
   const labels = getLabels();

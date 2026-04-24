@@ -125,12 +125,11 @@ export function Subscription() {
           tenant.validTill = newValidTill;
           localStorage.setItem('active_tenant', JSON.stringify(tenant));
 
-          // Also update Superadmin database to reflect changes
-          const systemAdmins = JSON.parse(localStorage.getItem('system_admins') || '[]');
-          const updatedAdmins = systemAdmins.map((a: any) => 
-            a.id === tenant.id ? { ...a, planId: plan.id, validTill: newValidTill } : a
-          );
-          localStorage.setItem('system_admins', JSON.stringify(updatedAdmins));
+          fetch(`${API_URL}/api/tenants/${tenant.id}/plan`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ planId: plan.id, validTill: newValidTill })
+          }).catch(err => console.error('Failed to update tenant plan in db', err));
         }
 
         alert(`Payment successful!\nPayment ID: ${response.razorpay_payment_id}\n\nYour account has been upgraded to ${plan.name}.`);

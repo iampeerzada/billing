@@ -19,10 +19,30 @@ interface Plan {
   };
   modules?: {
     invoice: boolean;
+    estimate: boolean;
     purchase: boolean;
+    creditDebit: boolean;
     customer: boolean;
     vendor: boolean;
     reports: boolean;
+    partyLedger: boolean;
+    cashbook: boolean;
+    profitLoss: boolean;
+    balanceSheet: boolean;
+    stockInOut: boolean;
+    itemMaster: boolean;
+    lowStock: boolean;
+    batchExpiry: boolean;
+    customerHistory: boolean;
+    outstanding: boolean;
+    creditLimit: boolean;
+    autoReminder: boolean;
+    gstr1: boolean;
+    gstr3b: boolean;
+    gstr2b: boolean;
+    gstr2a: boolean;
+    gstr9: boolean;
+    gstr9c: boolean;
     subscription: boolean;
     settings: boolean;
     backupRestore: boolean;
@@ -44,8 +64,13 @@ interface AdminProfile {
 }
 
 const DEFAULT_MODULES = {
-  invoice: true, purchase: true, customer: true, vendor: true,
-  reports: true, subscription: true, settings: true, backupRestore: true, staffLogs: true
+  invoice: true, estimate: true, purchase: true, creditDebit: true,
+  customer: true, vendor: true, reports: true, partyLedger: true,
+  cashbook: true, profitLoss: true, balanceSheet: true, stockInOut: true,
+  itemMaster: true, lowStock: true, batchExpiry: true, customerHistory: true,
+  outstanding: true, creditLimit: true, autoReminder: true, gstr1: true,
+  gstr3b: true, gstr2b: true, gstr2a: true, gstr9: true, gstr9c: true,
+  subscription: true, settings: true, backupRestore: true, staffLogs: true
 };
 
 const DEFAULT_PLANS: Plan[] = [
@@ -73,7 +98,7 @@ export function SuperadminPanel() {
     phone: '',
     loginId: '',
     password: '',
-    planId: '1'
+    planId: 'free-trial'
   });
 
   const fetchData = async () => {
@@ -99,12 +124,12 @@ export function SuperadminPanel() {
         const aData = await aRes.json();
         setAdmins(aData);
       } else {
-        setAdmins(MOCK_ADMINS);
+        // setAdmins(MOCK_ADMINS);
       }
     } catch (error) {
       console.error("Failed to fetch server data:", error);
-      setPlans(DEFAULT_PLANS);
-      setAdmins(MOCK_ADMINS);
+      // setPlans(DEFAULT_PLANS);
+      // setAdmins(MOCK_ADMINS);
     } finally {
       setIsLoading(false);
     }
@@ -163,7 +188,10 @@ export function SuperadminPanel() {
     }
   };
 
-  const getPlanName = (planId: string) => plans.find(p => p.id === planId)?.name || 'Unknown Plan';
+  const getPlanName = (planId: string) => {
+    if (planId === 'free-trial') return 'Free Trial';
+    return plans.find(p => p.id === planId)?.name || 'Unknown Plan';
+  };
 
   const resetData = () => {
     if(window.confirm('Reset all demo data for Superadmin?')) {
@@ -190,7 +218,9 @@ export function SuperadminPanel() {
       planId: newTenant.planId,
       status: 'Active',
       joinedAt: new Date().toISOString().split('T')[0],
-      validTill: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0] // 1 year default
+      validTill: newTenant.planId === 'free-trial' 
+        ? new Date(new Date().getTime() + 86400000).toISOString().split('T')[0] 
+        : new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0] // 1 year default
     };
 
     try {
@@ -557,6 +587,7 @@ export function SuperadminPanel() {
                           onChange={(e) => setNewTenant({ ...newTenant, planId: e.target.value })}
                           className="w-full border border-slate-200 p-2 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all appearance-none"
                         >
+                          <option value="free-trial">Free Trial (1 Day)</option>
                           {plans.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
@@ -695,7 +726,7 @@ export function SuperadminPanel() {
                       
                       <div className="grid grid-cols-3 gap-2">
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Invoices</label>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Invoices (per month)</label>
                           <input 
                             type="number"
                             value={plan.limits?.maxInvoices || 0}
@@ -709,7 +740,7 @@ export function SuperadminPanel() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Purchases</label>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Purchases (per month)</label>
                           <input 
                             type="number"
                             value={plan.limits?.maxPurchases || 0}
@@ -723,7 +754,7 @@ export function SuperadminPanel() {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Customers</label>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Customers / Vendors (total)</label>
                           <input 
                             type="number"
                             value={plan.limits?.maxCustomers || 0}
@@ -741,9 +772,9 @@ export function SuperadminPanel() {
                     
                     <div className="p-4 bg-slate-50 rounded-b-2xl">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Enabled Modules</label>
-                      <div className="grid grid-cols-2 gap-2 text-xs font-medium text-slate-700">
-                        {['invoice', 'purchase', 'customer', 'vendor', 'reports', 'subscription', 'settings', 'backupRestore', 'staffLogs'].map(mod => (
-                          <label key={mod} className="flex items-center gap-2 cursor-pointer">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[10px] font-medium text-slate-700">
+                        {Object.keys(DEFAULT_MODULES).map(mod => (
+                          <label key={mod} className="flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 p-1 rounded transition-colors">
                             <input 
                               type="checkbox"
                               checked={plan.modules ? (plan.modules as any)[mod] : true}
@@ -753,7 +784,7 @@ export function SuperadminPanel() {
                                 (updated[index].modules as any)[mod] = e.target.checked;
                                 setPlans(updated);
                               }}
-                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3 h-3"
                             />
                             {mod.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                           </label>

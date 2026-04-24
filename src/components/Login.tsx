@@ -107,7 +107,7 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
           phone: signupData.phone,
           loginId: signupData.userid,
           password: signupData.password,
-          planId: '1',
+          planId: 'free-trial',
           status: 'Active',
           setupCompleted: 0,
           joinedAt: new Date().toISOString().split('T')[0],
@@ -213,6 +213,20 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
                 </div>
                 <h3 className="font-bold mb-2">WhatsApp Sync</h3>
                 <p className="text-sm text-slate-400">Connect via iFastX API to automatically notify clients about due estimates.</p>
+              </div>
+              <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50 backdrop-blur-sm">
+                <div className="w-10 h-10 bg-amber-500/20 text-amber-400 flex items-center justify-center rounded-lg mb-4">
+                  <Globe size={20} />
+                </div>
+                <h3 className="font-bold mb-2">100% Offline-Capable</h3>
+                <p className="text-sm text-slate-400">Never lose work when the internet drops. Your data safely stores locally and syncs back when online.</p>
+              </div>
+              <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50 backdrop-blur-sm">
+                <div className="w-10 h-10 bg-rose-500/20 text-rose-400 flex items-center justify-center rounded-lg mb-4">
+                  <CheckCircle2 size={20} />
+                </div>
+                <h3 className="font-bold mb-2">Secure Staff Logs</h3>
+                <p className="text-sm text-slate-400">Create staff logins with strict role assignments and tamper-proof activity logs.</p>
               </div>
             </div>
 

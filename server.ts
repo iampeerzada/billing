@@ -21,8 +21,6 @@ db.exec(`
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  try { db.exec("ALTER TABLE tenants ADD COLUMN validTill TEXT;"); } catch(e) {}
-
   CREATE TABLE IF NOT EXISTS companies (
     id TEXT PRIMARY KEY,
     tenantId TEXT NOT NULL,
@@ -182,6 +180,7 @@ tables.forEach(t => {
   try { db.exec(`ALTER TABLE ${t} ADD COLUMN companyId TEXT`); } catch(e) {}
 });
 
+try { db.exec("ALTER TABLE tenants ADD COLUMN validTill TEXT;"); } catch(e) {}
 try { db.exec("ALTER TABLE companies ADD COLUMN category TEXT;"); } catch(e) {}
 
 // Item mapping schema migrations
@@ -553,6 +552,16 @@ async function startServer() {
     db.prepare("INSERT OR IGNORE INTO companies (id, tenantId, name, gstin, address, phone, email, isDefault) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run('default', t.id, t.name, '', '', '', t.email, 1);
     res.json({ success: true });
+  });
+
+  app.put("/api/tenants/:id/plan", (req, res) => {
+    try {
+      const { planId, validTill } = req.body;
+      db.prepare("UPDATE tenants SET planId = ?, validTill = ? WHERE id = ?").run(planId, validTill, req.params.id);
+      res.json({ success: true });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   if (process.env.NODE_ENV !== "production") {

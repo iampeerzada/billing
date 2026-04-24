@@ -165,7 +165,7 @@ export function Home({ onNavigation }: HomeProps) {
                   <Package size={28} />
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-3">Smart Inventory Management</h3>
-                <p className="text-slate-600 leading-relaxed text-sm">Real-time stock tracking. Invoices auto-deduct stock, purchase bills auto-add. Get notified instantly when items run low.</p>
+                <p className="text-slate-600 leading-relaxed text-sm">Real-time stock tracking with HSN validation. Invoices auto-deduct stock, purchase bills auto-add. Get notified instantly when items run low.</p>
               </div>
 
               {/* Feature 3 */}
@@ -202,6 +202,33 @@ export function Home({ onNavigation }: HomeProps) {
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 mb-3">Vendor & Customer Master</h3>
                 <p className="text-slate-600 leading-relaxed text-sm">Maintain a centralized database of all your trading partners. Set credit limits for specific B2B customers effortlessly.</p>
+              </div>
+
+              {/* Feature 7 - Offline Sync */}
+              <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/5 transition-all">
+                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm text-blue-600 mb-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21"/><path d="m14 19.5 3-3 3 3"/><path d="M17 22v-5.5"/></svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">100% Offline-Capable Sync</h3>
+                <p className="text-slate-600 leading-relaxed text-sm">Server down? Internet dropped? No problem! iFastX safely securely queues all actions and syncs automatically when reconnected.</p>
+              </div>
+
+              {/* Feature 8 - Multi-role Access */}
+              <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/5 transition-all">
+                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm text-blue-600 mb-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Staff Management & Logs</h3>
+                <p className="text-slate-600 leading-relaxed text-sm">Assign strict modules and roles to your team. Monitor every action they perform with detailed, tamper-proof activity logs.</p>
+              </div>
+
+              {/* Feature 9 - GSTR Exports */}
+              <div className="p-8 rounded-3xl bg-slate-50 border border-slate-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/5 transition-all">
+                <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-sm text-blue-600 mb-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Automated GSTR-1 Exports</h3>
+                <p className="text-slate-600 leading-relaxed text-sm">Stop paying accountants for data entry. Download pristine GSTR-1 files in JSON or CSV directly suited for the GST Portal.</p>
               </div>
             </div>
           </div>

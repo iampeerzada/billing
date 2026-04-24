@@ -81,46 +81,40 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
 
   const billingItems = [
     ...(planModules?.invoice !== false ? [{ id: 'invoice', icon: FileText, label: 'Invoice Builder' }] : []),
-    ...(planModules?.invoice !== false ? [{ id: 'estimate', icon: FileText, label: 'Estimate / Quotation' }] : []),
+    ...(planModules?.estimate !== false ? [{ id: 'estimate', icon: FileText, label: 'Estimate / Quotation' }] : []),
     ...(planModules?.purchase !== false ? [{ id: 'purchase', icon: FileText, label: 'Purchase Bill' }] : []),
-    ...(planModules?.invoice !== false || planModules?.purchase !== false ? [{ id: 'credit-debit', icon: FileText, label: 'Credit / Debit Note' }] : []),
+    ...(planModules?.creditDebit !== false ? [{ id: 'credit-debit', icon: FileText, label: 'Credit / Debit Note' }] : []),
   ];
 
   const accountingItems = [
-    ...(planModules?.reports !== false ? [
-      { id: 'party-ledger', icon: Users, label: 'Party Ledger' },
-      { id: 'cashbook', icon: Wallet, label: 'Cashbook' },
-      { id: 'profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
-      { id: 'balance-sheet', icon: Scale, label: 'Balance Sheet' }
-    ] : [])
+    ...(planModules?.partyLedger !== false ? [{ id: 'party-ledger', icon: Users, label: 'Party Ledger' }] : []),
+    ...(planModules?.cashbook !== false ? [{ id: 'cashbook', icon: Wallet, label: 'Cashbook' }] : []),
+    ...(planModules?.profitLoss !== false ? [{ id: 'profit-loss', icon: TrendingUp, label: 'Profit & Loss' }] : []),
+    ...(planModules?.balanceSheet !== false ? [{ id: 'balance-sheet', icon: Scale, label: 'Balance Sheet' }] : [])
   ];
 
   const inventoryItems = [
-    { id: 'item-master', icon: Box, label: 'Item Master' },
-    { id: 'stock-in-out', icon: Package, label: 'Stock In / Out' },
-    { id: 'low-stock-alert', icon: AlertTriangle, label: 'Low Stock Alert' },
-    { id: 'batch-expiry', icon: Clock, label: 'Batch & Expiry' },
+    ...(planModules?.itemMaster !== false ? [{ id: 'item-master', icon: Box, label: 'Item Master' }] : []),
+    ...(planModules?.stockInOut !== false ? [{ id: 'stock-in-out', icon: Package, label: 'Stock In / Out' }] : []),
+    ...(planModules?.lowStock !== false ? [{ id: 'low-stock-alert', icon: AlertTriangle, label: 'Low Stock Alert' }] : []),
+    ...(planModules?.batchExpiry !== false ? [{ id: 'batch-expiry', icon: Clock, label: 'Batch & Expiry' }] : []),
   ];
 
   const customerItems = [
-    ...(planModules?.customer !== false ? [
-      { id: 'customer-history', icon: History, label: 'Customer History' },
-      { id: 'outstanding-payments', icon: IndianRupee, label: 'Outstanding Payments' },
-      { id: 'credit-limit', icon: ShieldAlert, label: 'Credit Limit' },
-      { id: 'auto-reminder', icon: MessageCircle, label: 'Auto Reminder (WhatsApp)' }
-    ] : []),
+    ...(planModules?.customerHistory !== false ? [{ id: 'customer-history', icon: History, label: 'Customer History' }] : []),
+    ...(planModules?.outstanding !== false ? [{ id: 'outstanding-payments', icon: IndianRupee, label: 'Outstanding Payments' }] : []),
+    ...(planModules?.creditLimit !== false ? [{ id: 'credit-limit', icon: ShieldAlert, label: 'Credit Limit' }] : []),
+    ...(planModules?.autoReminder !== false ? [{ id: 'auto-reminder', icon: MessageCircle, label: 'Auto Reminder (WhatsApp)' }] : []),
     ...(planModules?.vendor !== false ? [{ id: 'vendor-master', icon: Building2, label: 'Registered Vendors' }] : []),
   ];
 
   const taxItems = [
-    ...(planModules?.reports !== false ? [
-      { id: 'gstr1-export', icon: FileJson, label: 'GSTR-1' },
-      { id: 'gstr3b-report', icon: FileJson, label: 'GSTR-3B' },
-      { id: 'gstr2b-report', icon: FileJson, label: 'GSTR-2B' },
-      { id: 'gstr2a-report', icon: FileJson, label: 'GSTR-2A' },
-      { id: 'gstr9-report', icon: FileJson, label: 'GSTR-9' },
-      { id: 'gstr9c-report', icon: FileJson, label: 'GSTR-9C' }
-    ] : [])
+    ...(planModules?.gstr1 !== false ? [{ id: 'gstr1-export', icon: FileJson, label: 'GSTR-1' }] : []),
+    ...(planModules?.gstr3b !== false ? [{ id: 'gstr3b-report', icon: FileJson, label: 'GSTR-3B' }] : []),
+    ...(planModules?.gstr2b !== false ? [{ id: 'gstr2b-report', icon: FileJson, label: 'GSTR-2B' }] : []),
+    ...(planModules?.gstr2a !== false ? [{ id: 'gstr2a-report', icon: FileJson, label: 'GSTR-2A' }] : []),
+    ...(planModules?.gstr9 !== false ? [{ id: 'gstr9-report', icon: FileJson, label: 'GSTR-9' }] : []),
+    ...(planModules?.gstr9c !== false ? [{ id: 'gstr9c-report', icon: FileJson, label: 'GSTR-9C' }] : [])
   ];
 
   const settingsItems = [
