@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Download, Printer, Filter, Wallet, Plus, X } from 'lucide-react';
 import { API_URL } from '../config';
 
+import { isDateInRange } from '../utils';
+
 export function Cashbook() {
   const [accountType, setAccountType] = useState('all');
   const [dateRange, setDateRange] = useState('this-month');
@@ -87,7 +89,9 @@ export function Cashbook() {
       }
     };
     fetchTransactions();
-  }, [dateRange]);
+  }, []);
+
+  const filteredTransactions = transactions.filter(t => isDateInRange(t.date, dateRange));
 
   const handleAddEntry = () => {
     if (!newEntry.particulars || !newEntry.amount || Number(newEntry.amount) <= 0) {
@@ -248,9 +252,9 @@ export function Cashbook() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {transactions.length === 0 ? (
+              {filteredTransactions.length === 0 ? (
                 <tr><td colSpan={7} className="p-8 text-center text-slate-500">No cashbook transactions found.</td></tr>
-              ) : transactions.map((txn) => (
+              ) : filteredTransactions.map((txn) => (
                 <tr key={txn.id} className="hover:bg-slate-50/50 transition-colors text-sm">
                   <td className="p-4 text-slate-600">{txn.date}</td>
                   <td className="p-4 font-medium text-slate-900">{txn.particulars}</td>

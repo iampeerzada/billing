@@ -566,7 +566,7 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
       // Auto-save customer/vendor if not found
       if (!contactsData.find((c: any) => c.name === customer.name)) {
         const endpoint = type === 'purchase' ? 'vendors' : 'customers';
-        await fetch(`${API_URL}/api/${endpoint}`, {
+        const contactRes = await fetch(`${API_URL}/api/${endpoint}`, {
           method: 'POST',
           headers: isolationHeaders,
           body: JSON.stringify({
@@ -580,6 +580,13 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
             state: customer.state || 'Maharashtra'
           })
         });
+        if (!contactRes.ok) {
+           const errText = await contactRes.text();
+           console.error("Failed to save contact auto-silently", errText);
+           if(errText.includes('Limit Exceeded')) {
+              alert("Warning: " + (JSON.parse(errText).error || "Customer/Vendor limit reached. Contact not auto-saved."));
+           }
+        }
       }
 
       // Modify Item Master Stock if Purchase or Invoice - ONLY ON NEW CREATION for simplicity
@@ -734,13 +741,14 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
   return (
     <>
       {/* Screen View */}
-      <div className="p-8 max-w-6xl mx-auto no-print">
-        <div className="flex justify-between items-center mb-8">
+      <div className="p-4 sm:p-8 max-w-6xl mx-auto no-print">
+        <div className="mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">{labels.title}</h1>
-            <div className="flex items-center gap-4 mt-1">
-              <p className="text-slate-500">{labels.subtitle}</p>
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <h1 className="text-3xl font-bold text-slate-900">{labels.title}</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mt-2">
+              <p className="text-slate-500 text-sm">{labels.subtitle}</p>
+              <div className="flexitems-center hidden sm:flex border-l border-slate-200 h-4"></div>
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 w-max">
                 <button
                   type="button"
                   onClick={() => setIsGstInvoice(true)}
@@ -758,12 +766,13 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-3">
+
+          <div className="mt-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
             {onCancel && (
               <button 
                 type="button"
                 onClick={onCancel}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition-colors cursor-pointer whitespace-nowrap text-sm"
               >
                 Back
               </button>
@@ -771,51 +780,51 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
             <button 
               type="button"
               onClick={resetInvoice}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 font-medium transition-colors cursor-pointer whitespace-nowrap text-sm"
             >
-              <RefreshCw size={18} />
+              <RefreshCw size={16} />
               Reset
             </button>
             <button 
               type="button"
               onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer whitespace-nowrap text-sm"
             >
-              <Printer size={18} />
+              <Printer size={16} />
               Print
             </button>
             <button 
               type="button"
               onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer whitespace-nowrap text-sm"
             >
-              <FileDown size={18} />
+              <FileDown size={16} />
               PDF
             </button>
             <button 
               type="button"
               onClick={handleWhatsApp}
               disabled={isSendingWhatsApp}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-100 font-medium transition-colors cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-100 font-medium transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap text-sm"
             >
-              {isSendingWhatsApp ? <RefreshCw size={18} className="animate-spin" /> : <MessageCircle size={18} />}
+              {isSendingWhatsApp ? <RefreshCw size={16} className="animate-spin" /> : <MessageCircle size={16} />}
               WhatsApp
             </button>
             <button 
               type="button"
               onClick={handleEmail}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer whitespace-nowrap text-sm"
             >
-              <Mail size={18} />
+              <Mail size={16} />
               Email
             </button>
             <button 
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm shadow-blue-600/20 cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold transition-colors shadow-sm shadow-blue-600/20 cursor-pointer whitespace-nowrap text-sm ml-auto"
             >
-              <Save size={18} />
-              Save
+              <Save size={16} />
+              Save Document
             </button>
           </div>
         </div>

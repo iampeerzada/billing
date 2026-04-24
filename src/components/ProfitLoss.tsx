@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Download, Printer, TrendingUp, ChevronDown, ChevronRight } from 'lucide-react';
 import { API_URL } from '../config';
 
+import { isDateInRange } from '../utils';
+
 export function ProfitLoss() {
   const [dateRange, setDateRange] = useState('this-year');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -36,13 +38,17 @@ export function ProfitLoss() {
         let totalSales = 0;
         if (invRes.ok) {
           const invoices = await invRes.json();
-          totalSales = invoices.reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
+          totalSales = invoices
+             .filter((inv: any) => isDateInRange(inv.date, dateRange))
+             .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
         }
 
         let totalPurchases = 0;
         if (purRes.ok) {
           const purchases = await purRes.json();
-          totalPurchases = purchases.reduce((sum: number, pur: any) => sum + Number(pur.total || 0), 0);
+          totalPurchases = purchases
+             .filter((pur: any) => isDateInRange(pur.date, dateRange))
+             .reduce((sum: number, pur: any) => sum + Number(pur.total || 0), 0);
         }
 
         const grossProfit = totalSales - totalPurchases;

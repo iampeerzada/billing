@@ -36,8 +36,12 @@ export function GSTR1Export({ onInvoiceClick }: GSTR1ExportProps) {
     fetchData();
   }, []);
 
-  // Filter by month
-  const filteredInvoices = invoices.filter(inv => inv.date && inv.date.startsWith(month));
+  // Filter by month and type
+  const filteredInvoices = invoices.filter(inv => 
+    inv.date && 
+    inv.date.startsWith(month) && 
+    (!inv.type || inv.type === 'invoice')
+  );
 
   // Compute Data
   const b2bData = filteredInvoices.filter(inv => inv.customerData?.gstin).map(inv => ({

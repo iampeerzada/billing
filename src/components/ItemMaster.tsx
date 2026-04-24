@@ -223,7 +223,35 @@ export function ItemMaster() {
                       </option>
                     ))}
                   </datalist>
-                  <input type="text" placeholder="Or type custom category..." value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} className="w-full border rounded-lg p-2 outline-none mt-2" />
+                  <input 
+                    type="text" 
+                    list="category-list"
+                    placeholder="Search or type custom category..." 
+                    value={newItem.category} 
+                    onChange={e => setNewItem({...newItem, category: e.target.value})} 
+                    className="w-full border rounded-lg p-2 outline-none mt-2" 
+                  />
+                  <datalist id="category-list">
+                    <option value="Electronics"></option>
+                    <option value="Clothing & Apparel"></option>
+                    <option value="Home & Kitchen"></option>
+                    <option value="Groceries & Food"></option>
+                    <option value="Health & Beauty"></option>
+                    <option value="Automotive"></option>
+                    <option value="Sports & Outdoors"></option>
+                    <option value="Toys & Games"></option>
+                    <option value="Books & Stationery"></option>
+                    <option value="Furniture"></option>
+                    <option value="Jewelry & Watches"></option>
+                    <option value="Hardware & Tools"></option>
+                    <option value="Industrial & Scientific"></option>
+                    <option value="Pet Supplies"></option>
+                    <option value="Office Products"></option>
+                    <option value="Musical Instruments"></option>
+                    <option value="Software"></option>
+                    <option value="Baby Products"></option>
+                    <option value="Shoes & Footwear"></option>
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm mb-1 text-slate-600">Sales Rate (₹)</label>

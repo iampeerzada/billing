@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, History, FileText, CheckCircle, Clock } from 'lucide-react';
+import { Search, Filter, Download, History, FileText, CheckCircle, Clock, Plus, X } from 'lucide-react';
 import { API_URL } from '../config';
+import { isDateInRange } from '../utils';
 
 interface CustomerHistoryProps {
   onInvoiceClick?: (invoiceId: string, docType?: string) => void;
@@ -10,7 +11,11 @@ export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [customers, setCustomers] = useState<string[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [dateRange, setDateRange] = useState('all');
   
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ id: '', name: '', gstin: '', phone: '', email: '', address: '', state: 'Maharashtra' });
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -22,30 +27,82 @@ export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
 
       if (!activeTenant.id) return;
 
-      const res = await fetch(`${API_URL}/api/invoices`, {
-        headers: {
-          'x-tenant-id': activeTenant.id,
-          'x-company-id': activeCompany.id
-        }
-      });
+      // also load customers from /api/customers to combine them
+      const [res, custRes] = await Promise.all([
+        fetch(`${API_URL}/api/invoices`, { headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id } }),
+        fetch(`${API_URL}/api/customers`, { headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id } })
+      ]);
+
+      let uniqueCustomersSet = new Set<string>();
 
       if (res.ok) {
         const data = await res.json();
         setInvoices(data);
-        
-        // Extract unique customers
-        const uniqueCustomers = Array.from(new Set(data.map((inv: any) => inv.customerData?.name).filter(Boolean))) as string[];
-        setCustomers(uniqueCustomers);
-        if (uniqueCustomers.length > 0 && !selectedCustomer) {
-          setSelectedCustomer(uniqueCustomers[0]);
-        }
+        data.forEach((inv: any) => { if(inv.customerData?.name) uniqueCustomersSet.add(inv.customerData.name); });
+      }
+
+      if (custRes.ok) {
+        const cData = await custRes.json();
+        cData.forEach((c: any) => { if(c.name) uniqueCustomersSet.add(c.name); });
+      }
+
+      const uniqueCustomers = Array.from(uniqueCustomersSet);
+      setCustomers(uniqueCustomers);
+      if (uniqueCustomers.length > 0 && !selectedCustomer) {
+        setSelectedCustomer(uniqueCustomers[0]);
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const customerInvoices = invoices.filter(inv => inv.customerData?.name === selectedCustomer);
+  const handleSaveCustomer = async () => {
+    if (!newCustomer.name) return;
+    
+    const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+    const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+    if (!activeTenant.id) return;
+    
+    const customerData = {
+      ...newCustomer,
+      id: newCustomer.id || 'c_' + Date.now().toString()
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/api/customers`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': activeTenant.id,
+          'x-company-id': activeCompany.id
+        },
+        body: JSON.stringify(customerData)
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText);
+      }
+
+      await fetchData();
+      setSelectedCustomer(newCustomer.name);
+      setIsModalOpen(false);
+      setNewCustomer({ id: '', name: '', gstin: '', phone: '', email: '', address: '', state: 'Maharashtra' });
+    } catch (error: any) {
+      console.error("Error saving customer:", error);
+      const isLimitError = error.message?.includes('Limit Exceeded');
+      if (isLimitError) {
+        let msg = "Limit Exceeded";
+        try { msg = JSON.parse(error.message).error || msg; } catch(e){}
+        alert(msg);
+      } else {
+        alert("Failed to save customer.");
+      }
+    }
+  };
+
+  const customerInvoices = invoices.filter(inv => inv.customerData?.name === selectedCustomer && isDateInRange(inv.date, dateRange));
 
   const totalBilled = customerInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
   const totalPaid = customerInvoices.reduce((sum, inv) => sum + (inv.status === 'Paid' ? (inv.total || 0) : 0), 0);
@@ -74,6 +131,12 @@ export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
           <p className="text-slate-500">View complete timeline of invoices, payments, and estimates</p>
         </div>
         <div className="flex gap-3">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Plus size={18} /> Add Customer
+          </button>
           <button 
             onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
@@ -133,12 +196,18 @@ export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
                 <History size={18} className="text-blue-600" />
                 Timeline for {selectedCustomer || 'None Selected'}
               </h3>
-              <button 
-                onClick={() => alert('Advanced filters coming soon')}
-                className="p-1.5 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-600"
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500/20 outline-none max-w-[150px]"
               >
-                <Filter size={16} />
-              </button>
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="this-week">This Week</option>
+                <option value="this-month">This Month</option>
+                <option value="this-quarter">This Quarter</option>
+                <option value="this-year">This Year</option>
+              </select>
             </div>
             
             <div className="overflow-x-auto">
@@ -190,6 +259,70 @@ export function CustomerHistory({ onInvoiceClick }: CustomerHistoryProps) {
           </div>
         </div>
       </div>
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center pt-20 z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-slate-200">
+              <h2 className="text-xl font-bold text-slate-800">Add Customer</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div>
+                <label className="block text-sm mb-1 text-slate-600">Company Name *</label>
+                <input 
+                  type="text" 
+                  value={newCustomer.name} 
+                  onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} 
+                  className="w-full border rounded-lg p-2 outline-none" 
+                  placeholder="Enter company name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm mb-1 text-slate-600">GSTIN</label>
+                  <input type="text" value={newCustomer.gstin} onChange={e=>setNewCustomer({...newCustomer, gstin: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="Optional" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-600">State</label>
+                  <input type="text" value={newCustomer.state} onChange={e=>setNewCustomer({...newCustomer, state: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="e.g. Maharashtra" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm mb-1 text-slate-600">Phone</label>
+                  <input type="text" value={newCustomer.phone} onChange={e=>setNewCustomer({...newCustomer, phone: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="Optional" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-600">Email</label>
+                  <input type="email" value={newCustomer.email} onChange={e=>setNewCustomer({...newCustomer, email: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="Optional" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm mb-1 text-slate-600">Address</label>
+                <textarea rows={2} value={newCustomer.address} onChange={e=>setNewCustomer({...newCustomer, address: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="Optional"></textarea>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveCustomer}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

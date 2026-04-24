@@ -35,8 +35,6 @@ db.exec(`
     FOREIGN KEY(tenantId) REFERENCES tenants(id)
   );
 
-  try { db.exec("ALTER TABLE companies ADD COLUMN category TEXT;"); } catch(e) {}
-
   CREATE TABLE IF NOT EXISTS invoices (
     id TEXT PRIMARY KEY,
     tenantId TEXT NOT NULL,
@@ -181,6 +179,8 @@ tables.forEach(t => {
   try { db.exec(`ALTER TABLE ${t} ADD COLUMN tenantId TEXT`); } catch(e) {}
   try { db.exec(`ALTER TABLE ${t} ADD COLUMN companyId TEXT`); } catch(e) {}
 });
+
+try { db.exec("ALTER TABLE companies ADD COLUMN category TEXT;"); } catch(e) {}
 
 // Item mapping schema migrations
 try { db.exec('ALTER TABLE items ADD COLUMN category TEXT'); } catch(e) {}
