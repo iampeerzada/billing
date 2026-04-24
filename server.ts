@@ -15,11 +15,13 @@ db.exec(`
     loginId TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     planId TEXT,
-    expiryDate TEXT,
+    validTill TEXT,
     status TEXT DEFAULT 'Active',
     setupCompleted INTEGER DEFAULT 0,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  try { db.exec("ALTER TABLE tenants ADD COLUMN validTill TEXT;"); } catch(e) {}
 
   CREATE TABLE IF NOT EXISTS companies (
     id TEXT PRIMARY KEY,
@@ -545,8 +547,8 @@ async function startServer() {
   app.get("/api/tenants", (req, res) => res.json(db.prepare("SELECT * FROM tenants").all()));
   app.post("/api/tenants", (req, res) => {
     const t = req.body;
-    db.prepare("INSERT OR REPLACE INTO tenants (id, name, email, loginId, password, planId, status, setupCompleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(t.id, t.name, t.email, t.loginId, t.password, t.planId, t.status, t.setupCompleted || 0);
+    db.prepare("INSERT OR REPLACE INTO tenants (id, name, email, loginId, password, planId, status, setupCompleted, validTill) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(t.id, t.name, t.email, t.loginId, t.password, t.planId, t.status, t.setupCompleted || 0, t.validTill);
     // Auto-create default company
     db.prepare("INSERT OR IGNORE INTO companies (id, tenantId, name, gstin, address, phone, email, isDefault) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run('default', t.id, t.name, '', '', '', t.email, 1);
