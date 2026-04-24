@@ -209,7 +209,7 @@ async function startServer() {
     // Explicitly using * and disabling credentials for maximum cross-domain compatibility
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant-id, x-company-id, X-Tenant-Id, X-Company-Id');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant-id, x-company-id, X-Tenant-Id, X-Company-Id, x-user-name, X-User-Name');
     res.setHeader('Access-Control-Allow-Credentials', 'false');
     res.setHeader('Access-Control-Max-Age', '86400');
     res.setHeader('X-Backend-CORS', 'Nuclear-Applied-v3');
