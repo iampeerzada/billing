@@ -144,10 +144,73 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
   const [status, setStatus] = useState<string>(getInitialStatus());
   
   const [itemMasterData, setItemMasterData] = useState<any[]>([]);
+  const [contactsData, setContactsData] = useState<any[]>([]);
+
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile>({
+    name: "Acme Corp Solutions",
+    gstin: "27ABCDE1234F1Z5",
+    state: "Maharashtra",
+    address: "123 Business Park, Mumbai, 400001",
+    email: "contact@acmecorp.com",
+    phone: "+91 98765 43210",
+    bankName: "HDFC Bank",
+    accountNumber: "50100234567890",
+    ifsc: "HDFC0001234",
+    branch: "Mumbai Main Branch",
+    accountHolderName: "Acme Corp Solutions",
+    logo: ""
+  });
+
+  const [customer, setCustomer] = useState<Customer>({
+    name: "",
+    gstin: "",
+    state: "Maharashtra",
+    address: "",
+    email: "",
+    phone: ""
+  });
+
+  const [terms, setTerms] = useState(`1. Goods once sold will not be taken back.\n2. Interest @18% p.a. will be charged if payment is delayed.\n3. Subject to Mumbai Jurisdiction only.`);
+
+  const [items, setItems] = useState<InvoiceItem[]>([
+    { id: '1', name: '', description: '', hsn: '', quantity: 1, price: 0, gstRate: 18 }
+  ]);
+
+  const [totals, setTotals] = useState({
+    subtotal: 0,
+    cgst: 0,
+    sgst: 0,
+    igst: 0,
+    roundOff: 0,
+    deduction: 0,
+    total: 0
+  });
+
+  const [invoiceDetails, setInvoiceDetails] = useState({
+    number: `${type === 'estimate' ? 'EST' : type === 'purchase' ? 'PB' : type === 'credit-debit' ? 'CDN' : 'INV'}-${Math.floor(Math.random() * 10000)}`,
+    date: new Date().toISOString().split('T')[0],
+    noteType: 'Credit Note',
+    originalInvoiceNo: '',
+    originalInvoiceDate: '',
+    reason: ''
+  });
+
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   useEffect(() => {
     const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
     const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+
+    if (activeCompany.name) {
+      setBusinessProfile(prev => ({
+        ...prev,
+        name: activeCompany.name || activeTenant.name || prev.name,
+        gstin: activeCompany.gstin || prev.gstin,
+        address: activeCompany.address || prev.address,
+        email: activeCompany.email || activeTenant.email || prev.email,
+        phone: activeCompany.phone || activeTenant.phone || prev.phone
+      }));
+    }
 
     const fetchItems = async () => {
       try {
@@ -160,6 +223,21 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
         }
       } catch (err) {
         console.error('Failed to fetch items');
+      }
+    };
+    
+    const fetchContacts = async () => {
+      try {
+        if (!activeTenant.id) return;
+        const endpoint = type === 'purchase' ? 'vendors' : 'customers';
+        const res = await fetch(`${API_URL}/api/${endpoint}`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+        });
+        if (res.ok) {
+          setContactsData(await res.json());
+        }
+      } catch (err) {
+        console.error(`Failed to fetch ${type === 'purchase' ? 'vendors' : 'customers'}`);
       }
     };
     
@@ -200,70 +278,33 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
     };
 
     fetchItems();
-    loadExistingInvoice();
+    fetchContacts();
+    loadExistingInvoice().then(() => {
+      if (localStorage.getItem('auto_download_pdf') === 'true') {
+        setTimeout(() => {
+          handleDownloadPDF();
+          localStorage.removeItem('auto_download_pdf');
+        }, 1500); // Give time for PDF template to render fully
+      }
+    });
   }, [type]);
 
   const handleNameChange = (id: string, value: string) => {
     updateItem(id, 'name', value);
     const found = itemMasterData.find(item => item.name === value);
     if (found) {
-      if (found.price) updateItem(id, 'price', found.price);
+      if (type === 'purchase' && found.purchaseRate) {
+        updateItem(id, 'price', found.purchaseRate);
+      } else if (found.price) {
+        updateItem(id, 'price', found.price);
+      }
       if (found.description) updateItem(id, 'description', found.description);
+      if (found.hsn) updateItem(id, 'hsn', found.hsn);
+      if (found.gstRate) updateItem(id, 'gstRate', found.gstRate);
     }
   };
 
-  const [businessProfile, setBusinessProfile] = useState<BusinessProfile>({
-    name: "Acme Corp Solutions",
-    gstin: "27ABCDE1234F1Z5",
-    state: "Maharashtra",
-    address: "123 Business Park, Mumbai, 400001",
-    email: "contact@acmecorp.com",
-    phone: "+91 98765 43210",
-    bankName: "HDFC Bank",
-    accountNumber: "50100234567890",
-    ifsc: "HDFC0001234",
-    branch: "Mumbai Main Branch",
-    accountHolderName: "Acme Corp Solutions",
-    logo: ""
-  });
 
-  const [customer, setCustomer] = useState<Customer>({
-    name: "",
-    gstin: "",
-    state: "Maharashtra",
-    address: "",
-    email: "",
-    phone: ""
-  });
-
-  const [terms, setTerms] = useState(`1. Goods once sold will not be taken back.
-2. Interest @18% p.a. will be charged if payment is delayed.
-3. Subject to Mumbai Jurisdiction only.`);
-
-  const [items, setItems] = useState<InvoiceItem[]>([
-    { id: '1', name: '', description: '', hsn: '', quantity: 1, price: 0, gstRate: 18 }
-  ]);
-
-  const [totals, setTotals] = useState({
-    subtotal: 0,
-    cgst: 0,
-    sgst: 0,
-    igst: 0,
-    roundOff: 0,
-    deduction: 0,
-    total: 0
-  });
-
-  const [invoiceDetails, setInvoiceDetails] = useState({
-    number: `${type === 'estimate' ? 'EST' : type === 'purchase' ? 'PB' : type === 'credit-debit' ? 'CDN' : 'INV'}-${Math.floor(Math.random() * 10000)}`,
-    date: new Date().toISOString().split('T')[0],
-    noteType: 'Credit Note',
-    originalInvoiceNo: '',
-    originalInvoiceDate: '',
-    reason: ''
-  });
-
-  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   const getLabels = () => {
     switch (type) {
@@ -522,6 +563,25 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
       const filtered = existing.filter((e: any) => e.id !== invoiceId);
       localStorage.setItem(storageKey, JSON.stringify([...filtered, invoice]));
 
+      // Auto-save customer/vendor if not found
+      if (!contactsData.find((c: any) => c.name === customer.name)) {
+        const endpoint = type === 'purchase' ? 'vendors' : 'customers';
+        await fetch(`${API_URL}/api/${endpoint}`, {
+          method: 'POST',
+          headers: isolationHeaders,
+          body: JSON.stringify({
+            id: 'c_' + Date.now().toString(),
+            name: customer.name,
+            gst: customer.gstin || '',
+            gstin: customer.gstin || '',
+            email: customer.email || '',
+            phone: customer.phone || '',
+            address: customer.address || '',
+            state: customer.state || 'Maharashtra'
+          })
+        });
+      }
+
       // Modify Item Master Stock if Purchase or Invoice - ONLY ON NEW CREATION for simplicity
       if (!isEdit && (type === 'invoice' || type === 'purchase')) {
         const itemResponse = await fetch(`${API_URL}/api/items`, { headers: isolationHeaders });
@@ -549,17 +609,27 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
               });
 
               // 2. Update stock in item master on backend
+              let updatePayload = {
+                ...si,
+                currentStock: newStock
+              };
+              if (type === 'purchase') {
+                  updatePayload.purchaseRate = item.price;
+                  // If we have vendor/customer data saved in state
+                  updatePayload.vendorId = customer.id || customer.email || '';
+                  updatePayload.vendorName = customer.name;
+              }
               await fetch(`${API_URL}/api/items`, {
                 method: 'POST',
                 headers: isolationHeaders,
-                body: JSON.stringify({
-                  ...si,
-                  currentStock: newStock
-                })
+                body: JSON.stringify(updatePayload)
               });
             } else if (item.name.trim()) {
               // Item does not exist, so save it as a new item in the item master
               const newItemId = 'item_' + Date.now().toString() + Math.random().toString(36).substr(2, 5);
+              
+              const isPurchase = type === 'purchase';
+              
               await fetch(`${API_URL}/api/items`, {
                 method: 'POST',
                 headers: isolationHeaders,
@@ -567,8 +637,11 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                   id: newItemId,
                   name: item.name,
                   category: 'General',
-                  price: item.price,
-                  currentStock: type === 'purchase' ? item.quantity : 0, 
+                  price: isPurchase ? 0 : item.price,
+                  purchaseRate: isPurchase ? item.price : 0,
+                  vendorId: isPurchase ? (customer.id || customer.email || '') : '',
+                  vendorName: isPurchase ? customer.name : '',
+                  currentStock: isPurchase ? item.quantity : 0, 
                   minStock: 5,
                   unit: 'Pcs',
                   gstRate: item.gstRate || 18,
@@ -893,15 +966,38 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">{labels.billTo}</h3>
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-500 mb-1">Customer Name</label>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-slate-500 mb-1">{type === 'purchase' ? 'Vendor Name' : 'Customer Name'}</label>
                       <input
+                        list="contacts-list"
                         type="text"
                         value={customer.name}
-                        onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
+                        onChange={(e) => {
+                          const name = e.target.value;
+                          const found = contactsData.find(c => c.name === name);
+                          if (found) {
+                            setCustomer({
+                              ...customer,
+                              id: found.id || found.email || '',
+                              name: found.name,
+                              gstin: found.gstin || found.gst || '',
+                              email: found.email || '',
+                              phone: found.phone || '',
+                              address: found.address || '',
+                              state: found.state || 'Maharashtra'
+                            });
+                          } else {
+                            setCustomer({ ...customer, name });
+                          }
+                        }}
                         className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                        placeholder="Enter name"
+                        placeholder="Search existing or type new name..."
                       />
+                      <datalist id="contacts-list">
+                        {contactsData.map((c, i) => (
+                          <option key={i} value={c.name}>{c.phone || c.email || ''}</option>
+                        ))}
+                      </datalist>
                     </div>
                     {isGstInvoice && (
                     <div>
@@ -1045,24 +1141,34 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                   {items.map((item) => (
                     <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
                       <td className="py-3 px-2">
-                        <input
-                          type="text"
-                          value={item.name}
-                          onChange={(e) => handleNameChange(item.id, e.target.value)}
-                          placeholder="Item Name / Title"
-                          list={`item-list-datalist-${item.id}`}
-                          className="w-full bg-transparent border-none focus:ring-0 p-0 font-medium text-slate-900 placeholder-slate-300 mb-1"
-                        />
-                        <datalist id={`item-list-datalist-${item.id}`}>
-                          {itemMasterData.map(im => <option key={im.id} value={im.name} />)}
-                        </datalist>
-                        <input
-                          type="text"
-                          value={item.description || ''}
-                          onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                          placeholder="Description (optional)"
-                          className="w-full bg-transparent border-none focus:ring-0 p-0 text-xs text-slate-500 placeholder-slate-300"
-                        />
+                        <div className="flex flex-col gap-1">
+                          <div className="flex gap-2 items-center mb-1">
+                            <select
+                              className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-md p-1 outline-none focus:border-blue-400 max-w-[200px]"
+                              value=""
+                              onChange={(e) => {
+                                if(e.target.value) handleNameChange(item.id, e.target.value);
+                              }}
+                            >
+                              <option value="">-- Choose Item --</option>
+                              {itemMasterData.map(im => <option key={im.id} value={im.name}>{im.name}</option>)}
+                            </select>
+                            <input
+                              type="text"
+                              value={item.name}
+                              onChange={(e) => handleNameChange(item.id, e.target.value)}
+                              placeholder="Type custom name..."
+                              className="flex-1 bg-transparent border-b border-dashed border-slate-300 focus:border-slate-500 focus:ring-0 p-0 font-medium text-slate-900 placeholder-slate-400"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={item.description || ''}
+                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                            placeholder="Description (optional)"
+                            className="w-full bg-transparent border-none focus:ring-0 p-0 text-xs text-slate-500 placeholder-slate-300"
+                          />
+                        </div>
                       </td>
                       <td className="py-3 px-2 align-top">
                         <input

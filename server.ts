@@ -127,6 +127,19 @@ db.exec(`
     PRIMARY KEY(tenantId, companyId, key)
   );
 
+  CREATE TABLE IF NOT EXISTS customers (
+    id TEXT PRIMARY KEY,
+    tenantId TEXT NOT NULL,
+    companyId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    gstin TEXT,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    state TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS plans (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -138,13 +151,22 @@ db.exec(`
 `);
 
 // Migration utility
-const tables = ['invoices', 'items', 'vendors', 'estimates', 'purchases', 'stock_movements', 'settings', 'companies'];
+const tables = ['invoices', 'items', 'vendors', 'customers', 'estimates', 'purchases', 'stock_movements', 'settings', 'companies'];
 tables.forEach(t => {
   try { db.exec(`ALTER TABLE ${t} ADD COLUMN tenantId TEXT`); } catch(e) {}
   try { db.exec(`ALTER TABLE ${t} ADD COLUMN companyId TEXT`); } catch(e) {}
 });
 
+// Item mapping schema migrations
+try { db.exec('ALTER TABLE items ADD COLUMN category TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE items ADD COLUMN minStock REAL DEFAULT 0'); } catch(e) {}
+try { db.exec('ALTER TABLE items ADD COLUMN vendorId TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE items ADD COLUMN vendorName TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE items ADD COLUMN purchaseRate REAL'); } catch(e) {}
+
 // Seed default admin
+try { db.exec("UPDATE companies SET id='default' WHERE isDefault=1 AND id LIKE 'c_%'"); } catch (e) {}
+
 db.exec(`
   INSERT OR IGNORE INTO tenants (id, name, email, loginId, password, status, setupCompleted) 
   VALUES ('admin', 'Main Admin', 'admin@ifastx.in', 'admin', 'admin123', 'Active', 1);
@@ -241,7 +263,7 @@ async function startServer() {
         // Ensure at least one company exists for this tenant
         const company = db.prepare("SELECT * FROM companies WHERE tenantId = ? LIMIT 1").get(tenant.id);
         if (!company && tenant.id !== 'admin') {
-           const coId = 'c_' + Math.random().toString(36).substr(2, 9);
+           const coId = 'default';
            db.prepare("INSERT INTO companies (id, tenantId, name, isDefault) VALUES (?, ?, ?, 1)").run(coId, tenant.id, tenant.name + ' Default Company');
         }
         res.json({ success: true, tenant });
@@ -406,6 +428,7 @@ async function startServer() {
   createIsolatedRoutes('purchases', 'purchases', ['vendorData', 'itemsData']);
   createIsolatedRoutes('items', 'items');
   createIsolatedRoutes('vendors', 'vendors');
+  createIsolatedRoutes('customers', 'customers');
   createIsolatedRoutes('movements', 'stock_movements');
 
   // --- Settings API (Special Handling) ---
@@ -433,6 +456,9 @@ async function startServer() {
     const t = req.body;
     db.prepare("INSERT OR REPLACE INTO tenants (id, name, email, loginId, password, planId, status, setupCompleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(t.id, t.name, t.email, t.loginId, t.password, t.planId, t.status, t.setupCompleted || 0);
+    // Auto-create default company
+    db.prepare("INSERT OR IGNORE INTO companies (id, tenantId, name, gstin, address, phone, email, isDefault) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run('default', t.id, t.name, '', '', '', t.email, 1);
     res.json({ success: true });
   });
 

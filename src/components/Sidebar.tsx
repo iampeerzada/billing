@@ -29,7 +29,9 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
 
   useEffect(() => {
      if (tenant?.id) {
-       fetch(`${API_URL}/api/companies/${tenant.id}`)
+       fetch(`${API_URL}/api/companies`, {
+         headers: { 'x-tenant-id': tenant.id }
+       })
          .then(res => res.json())
          .then(data => {
             if (data && Array.isArray(data)) {

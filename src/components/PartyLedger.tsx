@@ -165,12 +165,16 @@ export function PartyLedger() {
         <div className="p-6 border-b border-slate-200">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Tech Solutions Ltd</h2>
-              <p className="text-slate-500">Customer • GSTIN: 27AADCB2230M1Z2</p>
+              <h2 className="text-xl font-bold text-slate-900">{searchQuery || 'All Parties'}</h2>
+              <p className="text-slate-500">{partyType === 'all' ? 'All Parties' : partyType === 'customers' ? 'Customers' : 'Suppliers'}</p>
             </div>
             <div className="text-right">
               <p className="text-sm text-slate-500 mb-1">Closing Balance</p>
-              <p className="text-2xl font-bold text-blue-600">₹ 18,000 <span className="text-sm font-normal text-slate-500">Dr</span></p>
+              <p className="text-2xl font-bold text-blue-600">
+                {filteredTransactions.length > 0 
+                     ? `₹ ${Math.abs(filteredTransactions[0].balance).toLocaleString()} ${filteredTransactions[0].balance > 0 ? 'Dr' : 'Cr'}` 
+                     : '₹ 0'}
+              </p>
             </div>
           </div>
         </div>

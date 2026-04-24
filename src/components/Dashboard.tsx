@@ -255,20 +255,25 @@ export function Dashboard({ setActiveTab }: DashboardProps) {
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-slate-800 font-bold text-lg">Most Used Reports</h3>
               <button 
-                onClick={() => alert('View All Reports coming soon')}
+                onClick={() => setActiveTab && setActiveTab('party-ledger')}
                 className="text-blue-600 hover:underline text-sm font-bold bg-blue-50 px-3 py-1.5 rounded-lg"
               >
                 View All
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {['Sale Report', 'All Transactions', 'Daybook Report', 'Party Statement'].map((report, i) => (
+              {[
+                { name: 'Sale Report', tab: 'all-invoices' }, 
+                { name: 'All Transactions', tab: 'all-invoices' }, 
+                { name: 'Daybook Report', tab: 'party-ledger' }, 
+                { name: 'Party Statement', tab: 'party-ledger' }
+              ].map((report, i) => (
                 <button 
                   key={i} 
-                  onClick={() => setActiveTab && setActiveTab('invoice')}
+                  onClick={() => setActiveTab && setActiveTab(report.tab)}
                   className="flex items-center justify-between p-4 border border-slate-200 bg-slate-50 rounded-xl hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/50 transition-all group shadow-sm hover:shadow-md"
                 >
-                  <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{report}</span>
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{report.name}</span>
                   <ChevronRight size={18} className="text-slate-400 group-hover:text-blue-600" />
                 </button>
               ))}
@@ -338,10 +343,10 @@ export function Dashboard({ setActiveTab }: DashboardProps) {
 
           {/* Add Widget Button */}
           <button 
-            onClick={() => setActiveTab && setActiveTab('party-ledger')}
-            className="w-full bg-white p-4 rounded-md border border-slate-200 border-dashed hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-between text-slate-500 hover:text-blue-600"
+            onClick={() => alert('Widget Store and Analytics Customization will be available in the next major update!')}
+            className="w-full bg-white p-4 rounded-md border border-slate-200 border-dashed hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-between text-slate-500 hover:text-blue-600 focus:outline-none"
           >
-            <span className="text-sm font-medium">Add Widget of Your Choice</span>
+            <span className="text-sm font-bold opacity-80">Add Custom Widget</span>
             <Plus size={20} />
           </button>
         </div>

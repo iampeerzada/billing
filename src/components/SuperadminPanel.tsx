@@ -133,6 +133,7 @@ export function SuperadminPanel() {
            alert(`Warning: Failed to save plan ${plan.name}. Server returned ${response.status}`);
         }
       }
+      localStorage.setItem('system_plans', JSON.stringify(plans));
       alert('Subscription plans updated successfully across the platform.');
       fetchData();
     } catch (error: any) {
@@ -313,6 +314,20 @@ export function SuperadminPanel() {
                           </span>
                         </td>
                         <td className="p-4 text-right flex justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              if(window.confirm(`Login as ${admin.name}?`)) {
+                                localStorage.setItem('userRole', 'admin');
+                                localStorage.setItem('active_tenant', JSON.stringify(admin));
+                                localStorage.setItem('active_company', JSON.stringify({ id: 'default', name: admin.name }));
+                                window.location.reload();
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center gap-1"
+                            title="Shift to this admin account"
+                          >
+                            <Users size={14} /> Login As
+                          </button>
                           <button
                             onClick={() => setEditingAdmin(admin)}
                             className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center gap-1"

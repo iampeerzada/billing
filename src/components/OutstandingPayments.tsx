@@ -83,6 +83,12 @@ export function OutstandingPayments() {
     }, 1500);
   };
 
+  const notDue = outstanding.filter(i => i.daysOverdue <= 0).reduce((acc, curr) => acc + curr.balance, 0);
+  const days1to30 = outstanding.filter(i => i.daysOverdue > 0 && i.daysOverdue <= 30).reduce((acc, curr) => acc + curr.balance, 0);
+  const days31to60 = outstanding.filter(i => i.daysOverdue > 30 && i.daysOverdue <= 60).reduce((acc, curr) => acc + curr.balance, 0);
+  const days61to90 = outstanding.filter(i => i.daysOverdue > 60 && i.daysOverdue <= 90).reduce((acc, curr) => acc + curr.balance, 0);
+  const over90 = outstanding.filter(i => i.daysOverdue > 90).reduce((acc, curr) => acc + curr.balance, 0);
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -117,23 +123,23 @@ export function OutstandingPayments() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Not Yet Due</p>
-          <p className="text-xl font-bold text-slate-900">₹ 12,000</p>
+          <p className="text-xl font-bold text-slate-900">₹ {notDue.toLocaleString()}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-sm bg-amber-50/30">
           <p className="text-xs font-medium text-amber-600 uppercase tracking-wider mb-1">1 - 30 Days</p>
-          <p className="text-xl font-bold text-amber-700">₹ 10,000</p>
+          <p className="text-xl font-bold text-amber-700">₹ {days1to30.toLocaleString()}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-orange-200 shadow-sm bg-orange-50/30">
           <p className="text-xs font-medium text-orange-600 uppercase tracking-wider mb-1">31 - 60 Days</p>
-          <p className="text-xl font-bold text-orange-700">₹ 45,000</p>
+          <p className="text-xl font-bold text-orange-700">₹ {days31to60.toLocaleString()}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-rose-200 shadow-sm bg-rose-50/30">
           <p className="text-xs font-medium text-rose-600 uppercase tracking-wider mb-1">61 - 90 Days</p>
-          <p className="text-xl font-bold text-rose-700">₹ 8,500</p>
+          <p className="text-xl font-bold text-rose-700">₹ {days61to90.toLocaleString()}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-rose-300 shadow-sm bg-rose-50">
           <p className="text-xs font-medium text-rose-700 uppercase tracking-wider mb-1">&gt; 90 Days</p>
-          <p className="text-xl font-bold text-rose-800">₹ 0</p>
+          <p className="text-xl font-bold text-rose-800">₹ {over90.toLocaleString()}</p>
         </div>
       </div>
 

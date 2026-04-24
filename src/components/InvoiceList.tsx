@@ -87,15 +87,8 @@ export function InvoiceList({ onNewInvoice, onInvoiceClick }: InvoiceListProps) 
   const getPartyName = (inv: any) => inv.customerData?.name || inv.vendorData?.name || 'Walk-in Party';
 
   const generateMockPDF = (inv: any) => {
-    // In a real application, you would generate a PDF Blob from HTML or using a library like pdfmake
-    const content = `Invoice Content for ${getDocNumber(inv)}`;
-    const blob = new Blob([content], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${getDocNumber(inv)}.pdf`;
-    link.click();
-    URL.revokeObjectURL(url);
+    localStorage.setItem('auto_download_pdf', 'true');
+    onInvoiceClick(inv.id, inv.type || filterType);
   };
 
   const shareViaWhatsApp = (inv: any) => {

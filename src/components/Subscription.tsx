@@ -49,24 +49,40 @@ export function Subscription() {
       if (activeTenant.planId) setCurrentPlanId(activeTenant.planId);
     }
     
-    const storedPlans = localStorage.getItem('system_plans');
-    if (storedPlans) {
-      let parsedPlans = JSON.parse(storedPlans);
-      if (parsedPlans.length > 0 && typeof parsedPlans[0].price === 'number') {
-        parsedPlans = parsedPlans.map((p: any) => ({
-          ...p,
-          prices: {
-            monthly: Math.round(p.price / 12),
-            quarterly: Math.round(p.price / 4),
-            halfYearly: Math.round(p.price / 2),
-            yearly: p.price
+    const fetchPlans = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/plans`, {
+          headers: { 'x-tenant-id': 'system', 'x-company-id': 'system' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            setPlans(data);
+            return;
           }
-        }));
+        }
+      } catch(e) {}
+      
+      const storedPlans = localStorage.getItem('system_plans');
+      if (storedPlans) {
+        let parsedPlans = JSON.parse(storedPlans);
+        if (parsedPlans.length > 0 && typeof parsedPlans[0].price === 'number') {
+          parsedPlans = parsedPlans.map((p: any) => ({
+            ...p,
+            prices: {
+              monthly: Math.round(p.price / 12),
+              quarterly: Math.round(p.price / 4),
+              halfYearly: Math.round(p.price / 2),
+              yearly: p.price
+            }
+          }));
+        }
+        setPlans(parsedPlans);
+      } else {
+        setPlans(DEFAULT_PLANS);
       }
-      setPlans(parsedPlans);
-    } else {
-      setPlans(DEFAULT_PLANS);
-    }
+    };
+    fetchPlans();
   }, []);
 
   const handlePayment = async (plan: Plan) => {

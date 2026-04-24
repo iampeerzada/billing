@@ -2,15 +2,54 @@ import React, { useState } from 'react';
 import { Search, Filter, Edit, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export function CreditLimit() {
-  const [customers, setCustomers] = useState([
-    { id: 1, name: 'Tech Solutions Ltd', limit: 100000, used: 85000, status: 'warning' },
-    { id: 2, name: 'Global Enterprises', limit: 50000, used: 55000, status: 'exceeded' },
-    { id: 3, name: 'ABC Corp', limit: 200000, used: 12000, status: 'safe' },
-    { id: 4, name: 'Local Retailers', limit: 20000, used: 18500, status: 'warning' },
-    { id: 5, name: 'New Startup Inc', limit: 0, used: 0, status: 'no-limit' }, // 0 means no limit set
-  ]);
+  const [customers, setCustomers] = useState<any[]>([]);
 
-  const handleEditLimit = (id: number, currentLimit: number, name: string) => {
+  React.useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+        const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+        
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/invoices`, {
+          headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+        });
+        if (res.ok) {
+           const data = await res.json();
+           const customerMap: Record<string, any> = {};
+           
+           data.forEach((inv: any) => {
+              if (inv.customerData?.name) {
+                 const name = inv.customerData.name;
+                 if (!customerMap[name]) {
+                    customerMap[name] = { id: name + Math.random(), name: name, limit: 0, used: 0, status: 'no-limit' };
+                 }
+                 if (inv.status !== 'Paid' && inv.status !== 'Completed') {
+                    customerMap[name].used += (inv.total || 0);
+                 }
+              }
+           });
+           
+           const storedLimits = JSON.parse(localStorage.getItem('credit_limits') || '{}');
+           
+           const newCustomers = Object.values(customerMap).map((c: any) => {
+              const limit = storedLimits[c.name] || 0;
+              const used = c.used;
+              let status = 'safe';
+              if (limit === 0) status = 'no-limit';
+              else if (used > limit) status = 'exceeded';
+              else if (used / limit >= 0.8) status = 'warning';
+              
+              return { ...c, limit, status };
+           });
+           
+           setCustomers(newCustomers);
+        }
+      } catch (e) {}
+    }
+    fetchCustomers();
+  }, [])
+
+  const handleEditLimit = (id: string, currentLimit: number, name: string) => {
     const limitStr = window.prompt(`Set new credit limit for ${name}:`, currentLimit.toString());
     if (limitStr === null) return;
     
@@ -19,6 +58,10 @@ export function CreditLimit() {
       alert('Invalid limit entered.');
       return;
     }
+
+    const storedLimits = JSON.parse(localStorage.getItem('credit_limits') || '{}');
+    storedLimits[name] = limit;
+    localStorage.setItem('credit_limits', JSON.stringify(storedLimits));
 
     setCustomers(prev => prev.map(c => {
       if (c.id === id) {
@@ -51,7 +94,7 @@ export function CreditLimit() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Limit Exceeded</p>
-            <p className="text-2xl font-bold text-slate-900">1 Customer</p>
+            <p className="text-2xl font-bold text-slate-900">{customers.filter(c => c.status === 'exceeded').length} Customer(s)</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm flex items-center gap-4">
@@ -60,7 +103,7 @@ export function CreditLimit() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Near Limit (&gt;80%)</p>
-            <p className="text-2xl font-bold text-slate-900">2 Customers</p>
+            <p className="text-2xl font-bold text-slate-900">{customers.filter(c => c.status === 'warning').length} Customer(s)</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex items-center gap-4">
@@ -69,7 +112,7 @@ export function CreditLimit() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Safe</p>
-            <p className="text-2xl font-bold text-slate-900">1 Customer</p>
+            <p className="text-2xl font-bold text-slate-900">{customers.filter(c => c.status === 'safe').length} Customer(s)</p>
           </div>
         </div>
       </div>

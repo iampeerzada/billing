@@ -1,12 +1,46 @@
 import React from 'react';
 import { Shield, Zap, TrendingUp, CheckCircle, Smartphone, ArrowRight, LayoutDashboard, Calculator, Package } from 'lucide-react';
 import { motion } from 'motion/react';
+import { API_URL } from '../config';
 
 interface HomeProps {
   onNavigation: (route: 'login' | 'signup') => void;
 }
 
 export function Home({ onNavigation }: HomeProps) {
+  const [plans, setPlans] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/plans`, {
+          headers: { 'x-tenant-id': 'system', 'x-company-id': 'system' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            setPlans(data);
+            return;
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+      
+      const storedPlans = localStorage.getItem('system_plans');
+      if (storedPlans) {
+        setPlans(JSON.parse(storedPlans));
+      } else {
+        setPlans([
+          { id: '1', name: 'Starter', prices: { yearly: 999 }, features: ['50 Invoices/month', 'Basic Reports', 'Email Support'] },
+          { id: '2', name: 'Pro', prices: { yearly: 2499 }, features: ['Unlimited Invoices', 'GSTR Export', 'WhatsApp Automation'] },
+          { id: '3', name: 'Enterprise', prices: { yearly: 4999 }, features: ['Custom Integrations', 'Multiple Users'] }
+        ]);
+      }
+    };
+    fetchPlans();
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
       {/* Header */}
@@ -183,8 +217,8 @@ export function Home({ onNavigation }: HomeProps) {
           
           <div className="max-w-6xl mx-auto px-6 relative z-10 mb-16">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {JSON.parse(localStorage.getItem('system_plans') || '[]').length > 0 ? (
-                JSON.parse(localStorage.getItem('system_plans') || '[]').map((plan: any, i: number) => (
+              {plans.length > 0 ? (
+                plans.map((plan: any, i: number) => (
                   <div key={plan.id} className="bg-slate-800/80 backdrop-blur-md rounded-3xl p-8 border border-slate-700 relative flex flex-col hover:border-blue-500 hover:-translate-y-2 transition-all">
                     {i === 1 && (
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full">

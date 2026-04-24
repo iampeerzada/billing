@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Box, Edit2 } from 'lucide-react';
 import { API_URL } from '../config';
+import { HSN_DATA } from '../hsnData';
 
 export function ItemMaster() {
   const [items, setItems] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newItem, setNewItem] = useState({ id: '', name: '', category: '', price: '', unit: 'pcs', currentStock: '0', minStock: '0', description: '', hsn: '', gstRate: '18' });
+  const [newItem, setNewItem] = useState({ id: '', name: '', category: '', price: '', unit: 'pcs', currentStock: '0', minStock: '0', description: '', hsn: '', gstRate: '18', vendorId: '', vendorName: '', purchaseRate: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const fetchVendors = async () => {
+    try {
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+      if (!activeTenant.id) return;
+      
+      const response = await fetch(`${API_URL}/api/vendors`, {
+        headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
+      });
+      if (response.ok) {
+        setVendors(await response.json());
+      }
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    }
+  };
 
   const fetchItems = async () => {
     try {
@@ -35,6 +54,7 @@ export function ItemMaster() {
 
   useEffect(() => {
     fetchItems();
+    fetchVendors();
   }, []);
 
   const handleSaveItem = async () => {
@@ -88,14 +108,17 @@ export function ItemMaster() {
       currentStock: item.currentStock.toString(),
       minStock: item.minStock ? item.minStock.toString() : '0',
       hsn: item.hsn || '',
-      gstRate: item.gstRate ? item.gstRate.toString() : '18'
+      gstRate: item.gstRate ? item.gstRate.toString() : '18',
+      vendorId: item.vendorId || '',
+      vendorName: item.vendorName || '',
+      purchaseRate: item.purchaseRate ? item.purchaseRate.toString() : ''
     });
     setIsEditing(true);
     setIsModalOpen(true);
   };
 
   const resetForm = () => {
-    setNewItem({ id: '', name: '', description: '', category: '', price: '', unit: 'pcs', currentStock: '0', minStock: '0', hsn: '', gstRate: '18' });
+    setNewItem({ id: '', name: '', description: '', category: '', price: '', unit: 'pcs', currentStock: '0', minStock: '0', hsn: '', gstRate: '18', vendorId: '', vendorName: '', purchaseRate: '' });
     setIsEditing(false);
   };
 
@@ -180,13 +203,41 @@ export function ItemMaster() {
                 <input value={newItem.description} onChange={e=>setNewItem({...newItem, description: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="Small description..." />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm mb-1 text-slate-600">Category</label>
-                  <input value={newItem.category} onChange={e=>setNewItem({...newItem, category: e.target.value})} className="w-full border rounded-lg p-2 outline-none" />
+                <div className="sm:col-span-2">
+                  <label className="block text-sm mb-1 text-slate-600">HSN & Category</label>
+                  <input
+                    list="hsn-list"
+                    placeholder="Search or Select HSN Code..."
+                    value={newItem.hsn}
+                    onChange={e => {
+                      const hsn = e.target.value;
+                      const cat = HSN_DATA.find(d => d.code === hsn)?.description || newItem.category;
+                      setNewItem({...newItem, hsn, category: cat});
+                    }}
+                    className="w-full border rounded-lg p-2 outline-none bg-white max-w-full"
+                  />
+                  <datalist id="hsn-list">
+                    {HSN_DATA.map(d => (
+                      <option key={d.code} value={d.code}>
+                        {d.code} - {d.description.length > 80 ? d.description.substring(0, 80) + '...' : d.description}
+                      </option>
+                    ))}
+                  </datalist>
+                  <input type="text" placeholder="Or type custom category..." value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} className="w-full border rounded-lg p-2 outline-none mt-2" />
                 </div>
                 <div>
-                  <label className="block text-sm mb-1 text-slate-600">Price (₹)</label>
+                  <label className="block text-sm mb-1 text-slate-600">Sales Rate (₹)</label>
                   <input type="number" value={newItem.price} onChange={e=>setNewItem({...newItem, price: e.target.value})} className="w-full border rounded-lg p-2 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1 text-slate-600">GST Rate (%)</label>
+                  <select value={newItem.gstRate} onChange={e=>setNewItem({...newItem, gstRate: e.target.value})} className="w-full border rounded-lg p-2 outline-none bg-white">
+                    <option value="0">0%</option>
+                    <option value="5">5%</option>
+                    <option value="12">12%</option>
+                    <option value="18">18%</option>
+                    <option value="28">28%</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm mb-1 text-slate-600">Opening Stock</label>
@@ -204,6 +255,29 @@ export function ItemMaster() {
                     <option value="box">Boxes (box)</option>
                     <option value="pack">Packs</option>
                   </select>
+                </div>
+                <div className="sm:col-span-2 border-t pt-4">
+                  <span className="text-sm font-bold text-slate-700 block mb-3">Vendor & Purchase Settings</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm mb-1 text-slate-600">Primary Vendor</label>
+                      <select 
+                        value={newItem.vendorId} 
+                        onChange={e => {
+                          const vendor = vendors.find(v => v.id === e.target.value);
+                          setNewItem({...newItem, vendorId: e.target.value, vendorName: vendor ? vendor.name : ''});
+                        }}
+                        className="w-full border rounded-lg p-2 outline-none bg-white"
+                      >
+                        <option value="">-- Select Vendor --</option>
+                        {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 text-slate-600">Purchase Rate (₹)</label>
+                      <input type="number" value={newItem.purchaseRate} onChange={e=>setNewItem({...newItem, purchaseRate: e.target.value})} className="w-full border rounded-lg p-2 outline-none" placeholder="Vendor rate..." />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
