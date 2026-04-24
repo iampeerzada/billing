@@ -35,12 +35,19 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
          .then(res => res.json())
          .then(data => {
             if (data && Array.isArray(data)) {
-               setCompanies(data);
-               if (activeCompany) {
+               const staffStr = localStorage.getItem('active_staff');
+               let allowedCompanies = data;
+               if (staffStr) {
+                 const staff = JSON.parse(staffStr);
+                 allowedCompanies = data.filter((c: any) => c.id === staff.companyId);
+               }
+               setCompanies(allowedCompanies);
+               
+               if (activeCompany && allowedCompanies.some(c => c.id === activeCompany.id)) {
                  setSelectedCompanyId(activeCompany.id);
-               } else if (data.length > 0) {
-                 setSelectedCompanyId(data[0].id);
-                 localStorage.setItem('active_company', JSON.stringify(data[0]));
+               } else if (allowedCompanies.length > 0) {
+                 setSelectedCompanyId(allowedCompanies[0].id);
+                 localStorage.setItem('active_company', JSON.stringify(allowedCompanies[0]));
                  window.dispatchEvent(new Event('storage'));
                }
             }
@@ -100,6 +107,7 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   const settingsItems = [
     { id: 'backup-restore', icon: Cloud, label: 'Data & Auto Backup' },
     { id: 'settings', icon: Settings, label: 'General Settings' },
+    { id: 'staff-logs', icon: Users, label: 'Staff & Logs' },
     { id: 'subscription', icon: Crown, label: 'Subscription Plan' },
   ];
 

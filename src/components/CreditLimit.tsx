@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Filter, Edit, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { API_URL } from '../config';
 
 export function CreditLimit() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -10,7 +11,7 @@ export function CreditLimit() {
         const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
         const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
         
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/invoices`, {
+        const res = await fetch(`${API_URL}/api/invoices`, {
           headers: { 'x-tenant-id': activeTenant.id, 'x-company-id': activeCompany.id }
         });
         if (res.ok) {

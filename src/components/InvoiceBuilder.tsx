@@ -604,7 +604,8 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                   type: movementType,
                   quantity: qty,
                   date: new Date().toISOString().split('T')[0],
-                  remarks: `${type.toUpperCase()} - ${invoiceDetails.number}`
+                  remarks: `${type.toUpperCase()} - ${invoiceDetails.number}`,
+                  partyName: customer.name || ''
                 })
               });
 

@@ -116,6 +116,7 @@ db.exec(`
     quantity REAL NOT NULL,
     date TEXT NOT NULL,
     remarks TEXT,
+    partyName TEXT,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -137,6 +138,27 @@ db.exec(`
     email TEXT,
     address TEXT,
     state TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS activity_logs (
+    id TEXT PRIMARY KEY,
+    tenantId TEXT NOT NULL,
+    companyId TEXT NOT NULL,
+    userName TEXT NOT NULL,
+    action TEXT NOT NULL,
+    details TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS staff (
+    id TEXT PRIMARY KEY,
+    tenantId TEXT NOT NULL,
+    companyId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    loginId TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'staff',
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -163,6 +185,7 @@ try { db.exec('ALTER TABLE items ADD COLUMN minStock REAL DEFAULT 0'); } catch(e
 try { db.exec('ALTER TABLE items ADD COLUMN vendorId TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE items ADD COLUMN vendorName TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE items ADD COLUMN purchaseRate REAL'); } catch(e) {}
+try { db.exec('ALTER TABLE stock_movements ADD COLUMN partyName TEXT'); } catch(e) {}
 
 // Seed default admin
 try { db.exec("UPDATE companies SET id='default' WHERE isDefault=1 AND id LIKE 'c_%'"); } catch (e) {}
@@ -259,6 +282,7 @@ async function startServer() {
     try {
       const { loginId, password } = req.body;
       const tenant = db.prepare("SELECT * FROM tenants WHERE (loginId = ? OR email = ?) AND password = ?").get(loginId, loginId, password);
+      
       if (tenant) {
         // Ensure at least one company exists for this tenant
         const company = db.prepare("SELECT * FROM companies WHERE tenantId = ? LIMIT 1").get(tenant.id);
@@ -266,8 +290,13 @@ async function startServer() {
            const coId = 'default';
            db.prepare("INSERT INTO companies (id, tenantId, name, isDefault) VALUES (?, ?, ?, 1)").run(coId, tenant.id, tenant.name + ' Default Company');
         }
-        res.json({ success: true, tenant });
+        return res.json({ success: true, tenant, role: 'admin' });
       } else {
+        const staff = db.prepare("SELECT * FROM staff WHERE loginId = ? AND password = ?").get(loginId, password) as any;
+        if (staff) {
+          const staffTenant = db.prepare("SELECT * FROM tenants WHERE id = ?").get(staff.tenantId);
+          return res.json({ success: true, tenant: staffTenant, staff, role: staff.role });
+        }
         res.status(401).json({ success: false, message: "Invalid credentials" });
       }
     } catch (error) {
@@ -303,6 +332,17 @@ async function startServer() {
   });
 
   // --- Generic Isolated Handler Creator ---
+  const logActivity = (tenantId: string, companyId: string, userName: string, action: string, details: string) => {
+    try {
+      if (tenantId && companyId) {
+        db.prepare("INSERT INTO activity_logs (id, tenantId, companyId, userName, action, details) VALUES (?, ?, ?, ?, ?, ?)")
+          .run(Date.now().toString() + Math.random().toString(36).substr(2, 5), tenantId, companyId, userName || 'User', action, details);
+      }
+    } catch (e) {
+      console.error("Log error", e.message);
+    }
+  };
+
   const createIsolatedRoutes = (pathBase: string, table: string, jsonFields: string[] = []) => {
     // GET List
     app.get(`/api/${pathBase}`, (req, res) => {
@@ -404,20 +444,26 @@ async function startServer() {
         values.push(tId, cId);
 
         db.prepare(`INSERT OR REPLACE INTO ${table} (${columns}) VALUES (${placeholders}, ?, ?)`).run(...values);
+        
+        const userName = (req.headers['x-user-name'] as string) || 'Company Admin';
+        logActivity(tId, cId, userName, `Saved ${table}`, `Record ID: ${data.id || data.invoiceNumber || data.itemId}`);
+        
         res.json({ success: true });
-      } catch (e) { 
+      } catch (e) {
         require('fs').appendFileSync('server_error.log', `[${pathBase}] Error: ${e.message}\nPayload: ${JSON.stringify(data)}\n`);
-        res.status(500).json({ error: e.message }); 
+        res.status(500).json({ error: e.message });
       }
     });
 
     // DELETE
     app.delete(`/api/${pathBase}/:id`, (req, res) => {
       const tId = getTenantId(req), cId = getCompanyId(req);
+      const userName = (req.headers['x-user-name'] as string) || 'Company Admin';
       const { id } = req.params;
       if (!tId || !cId) return res.status(400).json({ error: "Missing Isolation Headers" });
       try {
         db.prepare(`DELETE FROM ${table} WHERE id = ? AND tenantId = ? AND companyId = ?`).run(id, tId, cId);
+        logActivity(tId, cId, userName, `Deleted from ${table}`, `Record ID: ${id}`);
         res.json({ success: true });
       } catch (e) { res.status(500).json({ error: e.message }); }
     });
@@ -430,6 +476,8 @@ async function startServer() {
   createIsolatedRoutes('vendors', 'vendors');
   createIsolatedRoutes('customers', 'customers');
   createIsolatedRoutes('movements', 'stock_movements');
+  createIsolatedRoutes('activity_logs', 'activity_logs');
+  createIsolatedRoutes('staff', 'staff');
 
   // --- Settings API (Special Handling) ---
   app.get("/api/settings", (req, res) => {

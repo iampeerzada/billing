@@ -28,6 +28,7 @@ import { Subscription } from './components/Subscription';
 import { SuperadminPanel } from './components/SuperadminPanel';
 import { InvoiceList } from './components/InvoiceList';
 import { Home } from './components/Home';
+import { StaffLogs } from './components/StaffLogs';
 import { UserRole, AppRoute } from './types';
 import { API_URL } from './config';
 
@@ -188,6 +189,7 @@ export default function App() {
       case 'gstr9c-report': return <GSTReportPlaceholder title="GSTR-9C Reconciliation Statement" description="Reconciliation statement to be certified by a CA/CMA, for taxpayers whose turnover exceeds the specified limit." />;
       case 'backup-restore': return <BackupRestore />;
       case 'settings': return <GeneralSettings />;
+      case 'staff-logs': return <StaffLogs />;
       case 'subscription': return <Subscription tenant={activeTenant} />;
       case 'superadmin': return <SuperadminPanel />;
       case 'all-invoices': return <InvoiceList 

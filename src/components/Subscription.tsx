@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Crown, CheckCircle2, ShieldCheck, CreditCard, ChevronRight } from 'lucide-react';
+import { API_URL } from '../config';
 
 interface Plan {
   id: string;

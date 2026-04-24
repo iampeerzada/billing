@@ -152,6 +152,11 @@ export function Login({ onLogin, defaultIsSignUp = false, onBackToHome }: LoginP
         const data = await response.json();
         const tenant = data.tenant;
         localStorage.setItem('active_tenant', JSON.stringify(tenant));
+        if (data.staff) {
+          localStorage.setItem('active_staff', JSON.stringify(data.staff));
+        } else {
+          localStorage.removeItem('active_staff');
+        }
         onLogin(tenant.loginId === 'admin' ? 'superadmin' : 'admin');
       } else {
         setError('Invalid User ID or Password.');
