@@ -60,13 +60,22 @@ export function VendorMaster() {
         body: JSON.stringify(vendorData)
       });
 
-      if (response.ok) {
-        await fetchVendors();
-        setIsModalOpen(false);
-        setNewVendor({ id: '', name: '', gstin: '', phone: '', email: '', address: '', state: '' });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText);
       }
-    } catch (error) {
+
+      await fetchVendors();
+      setIsModalOpen(false);
+      setNewVendor({ id: '', name: '', gstin: '', phone: '', email: '', address: '', state: '' });
+    } catch (error: any) {
       console.error("Error saving vendor:", error);
+      const isLimitError = error.message?.includes('Limit Exceeded');
+      if (isLimitError) {
+        alert(JSON.parse(error.message).error || "Limit Exceeded");
+      } else {
+        alert("Failed to save vendor.");
+      }
     }
   };
 

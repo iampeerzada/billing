@@ -19,6 +19,8 @@ export function BackupRestore() {
     localStorage.setItem('autoBackup', JSON.stringify(newValue));
   };
 
+  const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"name": "General"}');
+
   const handleManualBackup = () => {
     setIsBackingUp(true);
     
@@ -35,7 +37,8 @@ export function BackupRestore() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GSTPro_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    const sanitizedName = activeCompany.name.replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `${sanitizedName}_Backup_${new Date().toISOString().split('T')[0]}.json`;
     
     setTimeout(() => {
       a.click();
@@ -99,7 +102,11 @@ export function BackupRestore() {
           <div className="p-6 bg-slate-50/50">
             {autoBackup ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+                <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <span className="text-sm font-bold animate-pulse">Real-time sync active</span>
+                </div>
+                <div className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-100">
                   <ShieldCheck size={18} />
                   <span className="text-sm font-medium">Your data is actively protected</span>
                 </div>
@@ -176,6 +183,24 @@ export function BackupRestore() {
             <p className="text-xs text-center text-slate-500 mt-2">
               Restoring will replace all current data with the backup file.
             </p>
+            <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
+              <button 
+                onClick={() => {
+                  const sampleData = { "sample_key": "sample_data" };
+                  const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Sample_Restore_Format.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-100 transition-all font-medium text-sm"
+              >
+                <Download size={16} />
+                Download Sample Backup Format
+              </button>
+            </div>
           </div>
         </div>
       </div>

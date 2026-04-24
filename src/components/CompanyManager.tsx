@@ -9,6 +9,7 @@ interface Company {
   address?: string;
   phone?: string;
   email?: string;
+  category?: string;
   isDefault: number;
 }
 
@@ -21,7 +22,8 @@ export function CompanyManager() {
     gstin: '',
     address: '',
     phone: '',
-    email: ''
+    email: '',
+    category: ''
   });
 
   const tenantStr = localStorage.getItem('active_tenant');
@@ -62,7 +64,7 @@ export function CompanyManager() {
       });
       if (res.ok) {
         setIsAdding(false);
-        setNewCompany({ name: '', gstin: '', address: '', phone: '', email: '' });
+        setNewCompany({ name: '', gstin: '', address: '', phone: '', email: '', category: '' });
         fetchCompanies();
       }
     } catch (e) {
@@ -132,6 +134,27 @@ export function CompanyManager() {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">Business Category</label>
+              <select 
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
+                value={newCompany.category}
+                onChange={e => setNewCompany({...newCompany, category: e.target.value})}
+              >
+                 <option value="">Select Category</option>
+                 <option value="Retail">Retail</option>
+                 <option value="Wholesale">Wholesale</option>
+                 <option value="Manufacturing">Manufacturing</option>
+                 <option value="Services">Services (IT, Consulting, etc.)</option>
+                 <option value="Freelancer">Freelancer</option>
+                 <option value="E-commerce">E-commerce</option>
+                 <option value="Restaurant">Restaurant / Food</option>
+                 <option value="Agency">Agency</option>
+                 <option value="Healthcare">Healthcare</option>
+                 <option value="Logistics">Logistics / Transport</option>
+                 <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Phone</label>
               <input 
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -191,9 +214,10 @@ export function CompanyManager() {
               <Building2 size={24} />
             </div>
 
-            <h3 className="text-xl font-black text-slate-900 mb-2 truncate">{co.name}</h3>
+            <h3 className="text-xl font-black text-slate-900 mb-1 truncate">{co.name}</h3>
+            {co.category && <div className="text-xs font-bold text-blue-600 bg-blue-50 w-fit px-2 py-1 rounded inline-block mb-3">{co.category}</div>}
             
-            <div className="space-y-2 mb-6">
+            <div className="space-y-2 mb-6 mt-1">
               {co.gstin && (
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> GST: {co.gstin}

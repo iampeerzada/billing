@@ -29,10 +29,13 @@ db.exec(`
     address TEXT,
     phone TEXT,
     email TEXT,
+    category TEXT,
     isDefault INTEGER DEFAULT 0,
     createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(tenantId) REFERENCES tenants(id)
   );
+
+  try { db.exec("ALTER TABLE companies ADD COLUMN category TEXT;"); } catch(e) {}
 
   CREATE TABLE IF NOT EXISTS invoices (
     id TEXT PRIMARY KEY,
@@ -251,7 +254,9 @@ async function startServer() {
         id: p.id,
         name: p.name,
         prices: p.prices ? JSON.parse(p.prices) : { monthly: p.price || 0, quarterly: 0, halfYearly: 0, yearly: 0 },
-        features: p.features ? (p.features.startsWith('[') ? JSON.parse(p.features) : p.features.split(',')) : []
+        features: p.features ? (p.features.startsWith('[') ? JSON.parse(p.features) : p.features.split(',')) : [],
+        limits: p.limits ? JSON.parse(p.limits) : {},
+        modules: p.modules ? JSON.parse(p.modules) : {}
       }));
       res.json(formatted);
     } catch (e) {
@@ -262,15 +267,21 @@ async function startServer() {
   app.post("/api/plans", (req, res) => {
     try {
       const p = req.body;
-      // Handle the case where the table doesn't have the 'prices' column yet
       const rows = db.prepare("PRAGMA table_info(plans)").all();
-      const hasPricesCol = rows.some((r: any) => r.name === 'prices');
-      if (!hasPricesCol) {
-        db.prepare("ALTER TABLE plans ADD COLUMN prices TEXT").run();
-      }
+      if (!rows.some((r: any) => r.name === 'prices')) db.prepare("ALTER TABLE plans ADD COLUMN prices TEXT").run();
+      if (!rows.some((r: any) => r.name === 'limits')) db.prepare("ALTER TABLE plans ADD COLUMN limits TEXT").run();
+      if (!rows.some((r: any) => r.name === 'modules')) db.prepare("ALTER TABLE plans ADD COLUMN modules TEXT").run();
 
-      db.prepare("INSERT OR REPLACE INTO plans (id, name, price, prices, features) VALUES (?, ?, ?, ?, ?)")
-        .run(p.id, p.name, p.prices?.monthly || 0, JSON.stringify(p.prices || {}), JSON.stringify(p.features || []));
+      db.prepare("INSERT OR REPLACE INTO plans (id, name, price, prices, features, limits, modules) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(
+          p.id, 
+          p.name, 
+          p.prices?.monthly || 0, 
+          JSON.stringify(p.prices || {}), 
+          JSON.stringify(p.features || []),
+          JSON.stringify(p.limits || {}),
+          JSON.stringify(p.modules || {})
+        );
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -316,8 +327,8 @@ async function startServer() {
     const tId = getTenantId(req);
     const co = req.body;
     if (!tId) return res.status(400).json({ error: "Missing Tenant ID" });
-    db.prepare("INSERT OR REPLACE INTO companies (id, tenantId, name, gstin, address, phone, email, isDefault) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(co.id || Date.now().toString(), tId, co.name, co.gstin, co.address, co.phone, co.email, co.isDefault || 0);
+    db.prepare("INSERT OR REPLACE INTO companies (id, tenantId, name, gstin, address, phone, email, category, isDefault) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(co.id || Date.now().toString(), tId, co.name, co.gstin, co.address, co.phone, co.email, co.category || '', co.isDefault || 0);
     res.json({ success: true });
   });
 
@@ -341,6 +352,20 @@ async function startServer() {
     } catch (e) {
       console.error("Log error", e.message);
     }
+  };
+
+  const checkLimit = (tenantId: string, limitKey: 'maxInvoices' | 'maxPurchases' | 'maxCustomers', currentCount: number) => {
+    const tenant = db.prepare("SELECT planId FROM tenants WHERE id = ?").get(tenantId);
+    if (!tenant) return true; // if no tenant, maybe system default? allow
+    const plan = db.prepare("SELECT limits FROM plans WHERE id = ?").get(tenant.planId);
+    if (!plan || !plan.limits) return true; // no limits set
+    const limits = JSON.parse(plan.limits);
+    if (limits && typeof limits[limitKey] === 'number') {
+      if (currentCount >= limits[limitKey]) {
+        return false;
+      }
+    }
+    return true;
   };
 
   const createIsolatedRoutes = (pathBase: string, table: string, jsonFields: string[] = []) => {
@@ -432,6 +457,24 @@ async function startServer() {
           if (!keys.includes('remarks') && data.notes) {
              keys.push('remarks');
              data.remarks = data.notes;
+          }
+        }
+        
+        // Enforce limits for new records
+        const existing = db.prepare(`SELECT id FROM ${table} WHERE id = ? AND tenantId = ? AND companyId = ?`).get(data.id, tId, cId);
+        if (!existing) {
+          if (table === 'invoices') {
+            const count = db.prepare("SELECT COUNT(*) as count FROM invoices WHERE tenantId = ?").get(tId) as { count: number };
+            if (!checkLimit(tId, 'maxInvoices', count.count)) return res.status(403).json({ error: "Limit Exceeded: Maximum Invoices reached for your plan." });
+          } else if (table === 'purchases') {
+            const count = db.prepare("SELECT COUNT(*) as count FROM purchases WHERE tenantId = ?").get(tId) as { count: number };
+            if (!checkLimit(tId, 'maxPurchases', count.count)) return res.status(403).json({ error: "Limit Exceeded: Maximum Purchases reached for your plan." });
+          } else if (table === 'customers') {
+             const count = db.prepare("SELECT COUNT(*) as count FROM customers WHERE tenantId = ?").get(tId) as { count: number };
+             if (!checkLimit(tId, 'maxCustomers', count.count)) return res.status(403).json({ error: "Limit Exceeded: Maximum Customers reached for your plan." });
+          } else if (table === 'vendors') {
+             const count = db.prepare("SELECT COUNT(*) as count FROM vendors WHERE tenantId = ?").get(tId) as { count: number };
+             if (!checkLimit(tId, 'maxCustomers', count.count)) return res.status(403).json({ error: "Limit Exceeded: Maximum Customers/Vendors reached for your plan." });
           }
         }
         

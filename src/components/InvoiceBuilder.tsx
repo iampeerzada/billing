@@ -657,9 +657,14 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
 
       alert(labels.saveMsg);
       if (onCancel) onCancel();
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Failed to save ${type}:`, error);
-      alert(`Failed to save ${type}. Please try again.`);
+      const isLimitError = error.message?.includes('Limit Exceeded');
+      if (isLimitError) {
+        alert(error.message.split('-')[1]?.trim() || error.message);
+      } else {
+        alert(`Failed to save ${type}. Please try again.`);
+      }
     }
   };
 
@@ -671,25 +676,33 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
     const element = document.getElementById('invoice-print-area');
     if (!element) return;
     
-    // Temporarily remove print-only class to render properly for html2pdf
-    const originalClass = element.className;
-    element.className = originalClass.replace('print-only', '');
+    // Temporarily replace print-only class to render properly for html2pdf
+    // By cloning we prevent React DOM mismatch issues which might freeze
+    const clonedElement = element.cloneNode(true) as HTMLElement;
+    clonedElement.className = clonedElement.className.replace('print-only', '');
+    clonedElement.style.display = 'block';
+    clonedElement.style.width = '210mm'; // Force A4 width for the clone
+    
+    // Append to body temporarily so html2canvas can compute styles
+    clonedElement.style.position = 'absolute';
+    clonedElement.style.left = '-9999px';
+    document.body.appendChild(clonedElement);
     
     try {
       const opt = {
         margin: 0.2,
         filename: `${invoiceDetails.number}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        image: { type: 'jpeg' as const, quality: 0.95 },
+        html2canvas: { scale: 1.5, useCORS: true, logging: false },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' as const }
       };
-      await html2pdf().set(opt).from(element).save();
+      
+      await html2pdf().set(opt).from(clonedElement).save();
     } catch (error) {
       console.error("Failed to generate PDF:", error);
-      alert("Failed to generate PDF. Please try again.");
+      alert("Failed to generate PDF. Please try checking network or disabling adblock.");
     } finally {
-      // Restore original class
-      element.className = originalClass;
+      document.body.removeChild(clonedElement);
     }
   };
 

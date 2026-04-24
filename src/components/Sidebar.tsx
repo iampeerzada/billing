@@ -23,6 +23,7 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   
   const [companies, setCompanies] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [planModules, setPlanModules] = useState<any>(null);
 
   const activeCompanyStr = localStorage.getItem('active_company');
   const activeCompany = activeCompanyStr ? JSON.parse(activeCompanyStr) : null;
@@ -53,7 +54,19 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
             }
          }).catch(err => console.log('Error fetching companies', err));
      }
-  }, [tenant?.id]);
+
+     if (tenant?.planId) {
+        fetch(`${API_URL}/api/plans`)
+          .then(res => res.json())
+          .then(plans => {
+             const plan = plans.find((p: any) => p.id === tenant.planId);
+             if (plan) {
+               if (plan.modules) setPlanModules(plan.modules);
+               localStorage.setItem('active_plan', JSON.stringify(plan));
+             }
+          });
+     }
+  }, [tenant?.id, tenant?.planId]);
 
   const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const cid = e.target.value;
@@ -67,17 +80,19 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   };
 
   const billingItems = [
-    { id: 'invoice', icon: FileText, label: 'Invoice Builder' },
-    { id: 'estimate', icon: FileText, label: 'Estimate / Quotation' },
-    { id: 'purchase', icon: FileText, label: 'Purchase Bill' },
-    { id: 'credit-debit', icon: FileText, label: 'Credit / Debit Note' },
+    ...(planModules?.invoice !== false ? [{ id: 'invoice', icon: FileText, label: 'Invoice Builder' }] : []),
+    ...(planModules?.invoice !== false ? [{ id: 'estimate', icon: FileText, label: 'Estimate / Quotation' }] : []),
+    ...(planModules?.purchase !== false ? [{ id: 'purchase', icon: FileText, label: 'Purchase Bill' }] : []),
+    ...(planModules?.invoice !== false || planModules?.purchase !== false ? [{ id: 'credit-debit', icon: FileText, label: 'Credit / Debit Note' }] : []),
   ];
 
   const accountingItems = [
-    { id: 'party-ledger', icon: Users, label: 'Party Ledger' },
-    { id: 'cashbook', icon: Wallet, label: 'Cashbook' },
-    { id: 'profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
-    { id: 'balance-sheet', icon: Scale, label: 'Balance Sheet' },
+    ...(planModules?.reports !== false ? [
+      { id: 'party-ledger', icon: Users, label: 'Party Ledger' },
+      { id: 'cashbook', icon: Wallet, label: 'Cashbook' },
+      { id: 'profit-loss', icon: TrendingUp, label: 'Profit & Loss' },
+      { id: 'balance-sheet', icon: Scale, label: 'Balance Sheet' }
+    ] : [])
   ];
 
   const inventoryItems = [
@@ -88,27 +103,31 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
   ];
 
   const customerItems = [
-    { id: 'customer-history', icon: History, label: 'Customer History' },
-    { id: 'vendor-master', icon: Building2, label: 'Registered Vendors' },
-    { id: 'outstanding-payments', icon: IndianRupee, label: 'Outstanding Payments' },
-    { id: 'credit-limit', icon: ShieldAlert, label: 'Credit Limit' },
-    { id: 'auto-reminder', icon: MessageCircle, label: 'Auto Reminder (WhatsApp)' },
+    ...(planModules?.customer !== false ? [
+      { id: 'customer-history', icon: History, label: 'Customer History' },
+      { id: 'outstanding-payments', icon: IndianRupee, label: 'Outstanding Payments' },
+      { id: 'credit-limit', icon: ShieldAlert, label: 'Credit Limit' },
+      { id: 'auto-reminder', icon: MessageCircle, label: 'Auto Reminder (WhatsApp)' }
+    ] : []),
+    ...(planModules?.vendor !== false ? [{ id: 'vendor-master', icon: Building2, label: 'Registered Vendors' }] : []),
   ];
 
   const taxItems = [
-    { id: 'gstr1-export', icon: FileJson, label: 'GSTR-1' },
-    { id: 'gstr3b-report', icon: FileJson, label: 'GSTR-3B' },
-    { id: 'gstr2b-report', icon: FileJson, label: 'GSTR-2B' },
-    { id: 'gstr2a-report', icon: FileJson, label: 'GSTR-2A' },
-    { id: 'gstr9-report', icon: FileJson, label: 'GSTR-9' },
-    { id: 'gstr9c-report', icon: FileJson, label: 'GSTR-9C' },
+    ...(planModules?.reports !== false ? [
+      { id: 'gstr1-export', icon: FileJson, label: 'GSTR-1' },
+      { id: 'gstr3b-report', icon: FileJson, label: 'GSTR-3B' },
+      { id: 'gstr2b-report', icon: FileJson, label: 'GSTR-2B' },
+      { id: 'gstr2a-report', icon: FileJson, label: 'GSTR-2A' },
+      { id: 'gstr9-report', icon: FileJson, label: 'GSTR-9' },
+      { id: 'gstr9c-report', icon: FileJson, label: 'GSTR-9C' }
+    ] : [])
   ];
 
   const settingsItems = [
-    { id: 'backup-restore', icon: Cloud, label: 'Data & Auto Backup' },
-    { id: 'settings', icon: Settings, label: 'General Settings' },
-    { id: 'staff-logs', icon: Users, label: 'Staff & Logs' },
-    { id: 'subscription', icon: Crown, label: 'Subscription Plan' },
+    ...(planModules?.backupRestore !== false ? [{ id: 'backup-restore', icon: Cloud, label: 'Data & Auto Backup' }] : []),
+    ...(planModules?.settings !== false ? [{ id: 'settings', icon: Settings, label: 'General Settings' }] : []),
+    ...(planModules?.staffLogs !== false ? [{ id: 'staff-logs', icon: Users, label: 'Staff & Logs' }] : []),
+    ...(planModules?.subscription !== false ? [{ id: 'subscription', icon: Crown, label: 'Subscription Plan' }] : []),
   ];
 
   return (
@@ -127,16 +146,16 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <div className="text-amber-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 12.55a11 11 0 0 1 14.08 0" />
                   <path d="M1.42 9a16 16 0 0 1 21.16 0" />
                   <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
                   <circle cx="12" cy="20" r="2" fill="currentColor" stroke="none" />
                 </svg>
               </div>
-              <span className="text-3xl font-extrabold text-white tracking-tight italic">iFastX</span>
+              <span className="text-2xl font-extrabold text-white tracking-tight italic">iFastX</span>
             </div>
-            <span className="text-xs font-bold text-slate-300 tracking-wider mt-1 uppercase">GST Billing Platform</span>
+            <span className="text-[10px] font-bold text-slate-300 tracking-wider mt-1 uppercase">GST Billing Platform</span>
           </div>
           
           <button 
@@ -407,26 +426,26 @@ export function Sidebar({ activeTab, setActiveTab, userRole, onLogout, isExpired
 
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-3 border-t border-slate-800">
         {tenant && (
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-            <div className="flex items-center gap-2 text-amber-400 mb-2">
-              <Crown size={16} />
-              <span className="text-xs font-bold uppercase tracking-wider">{tenant.planId === '1' ? 'Starter' : tenant.planId === '2' ? 'Pro' : 'Enterprise'}</span>
+          <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
+            <div className="flex items-center gap-1.5 text-amber-400 mb-1">
+              <Crown size={14} />
+              <span className="text-[10px] font-bold uppercase tracking-wider">{tenant.planId === '1' ? 'Starter' : tenant.planId === '2' ? 'Pro' : 'Enterprise'}</span>
             </div>
-            <div className="flex justify-between items-end mb-2">
-              <span className="text-sm text-slate-400">Status</span>
-              <span className={`text-sm font-medium ${isExpired ? 'text-rose-400' : 'text-emerald-400'}`}>{isExpired ? 'Expired' : 'Active'}</span>
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-[10px] text-slate-400">Status</span>
+              <span className={`text-[10px] font-medium ${isExpired ? 'text-rose-400' : 'text-emerald-400'}`}>{isExpired ? 'Expired' : 'Active'}</span>
             </div>
-            <p className="text-xs text-slate-500">Valid till: {tenant.validTill}</p>
+            <p className="text-[9px] text-slate-500 truncate mt-0.5">Valid till: {tenant.validTill}</p>
           </div>
         )}
         
         <button 
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 mt-4 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 mt-2 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-lg transition-colors text-sm"
         >
-          <LogOut size={18} />
+          <LogOut size={16} />
           <span className="font-medium">Sign Out</span>
         </button>
       </div>

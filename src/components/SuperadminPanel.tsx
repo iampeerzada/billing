@@ -12,6 +12,22 @@ interface Plan {
     yearly: number;
   };
   features: string[];
+  limits?: {
+    maxInvoices: number;
+    maxPurchases: number;
+    maxCustomers: number;
+  };
+  modules?: {
+    invoice: boolean;
+    purchase: boolean;
+    customer: boolean;
+    vendor: boolean;
+    reports: boolean;
+    subscription: boolean;
+    settings: boolean;
+    backupRestore: boolean;
+    staffLogs: boolean;
+  };
 }
 
 interface AdminProfile {
@@ -27,10 +43,15 @@ interface AdminProfile {
   joinedAt: string;
 }
 
+const DEFAULT_MODULES = {
+  invoice: true, purchase: true, customer: true, vendor: true,
+  reports: true, subscription: true, settings: true, backupRestore: true, staffLogs: true
+};
+
 const DEFAULT_PLANS: Plan[] = [
-  { id: '1', name: 'Starter', prices: { monthly: 99, quarterly: 279, halfYearly: 549, yearly: 999 }, features: ['50 Invoices/month', 'Basic Reports', 'Email Support'] },
-  { id: '2', name: 'Pro', prices: { monthly: 249, quarterly: 699, halfYearly: 1299, yearly: 2499 }, features: ['Unlimited Invoices', 'GSTR Export', 'WhatsApp Automation', 'Priority Support'] },
-  { id: '3', name: 'Enterprise', prices: { monthly: 499, quarterly: 1399, halfYearly: 2599, yearly: 4999 }, features: ['Custom Integrations', 'Multiple Users', 'Dedicated Account Manager'] }
+  { id: '1', name: 'Starter', prices: { monthly: 99, quarterly: 279, halfYearly: 549, yearly: 999 }, features: ['50 Invoices/month', 'Basic Reports', 'Email Support'], limits: { maxInvoices: 50, maxPurchases: 50, maxCustomers: 100 }, modules: { ...DEFAULT_MODULES, staffLogs: false } },
+  { id: '2', name: 'Pro', prices: { monthly: 249, quarterly: 699, halfYearly: 1299, yearly: 2499 }, features: ['Unlimited Invoices', 'GSTR Export', 'WhatsApp Automation', 'Priority Support'], limits: { maxInvoices: 999999, maxPurchases: 999999, maxCustomers: 999999 }, modules: { ...DEFAULT_MODULES } },
+  { id: '3', name: 'Enterprise', prices: { monthly: 499, quarterly: 1399, halfYearly: 2599, yearly: 4999 }, features: ['Custom Integrations', 'Multiple Users', 'Dedicated Account Manager'], limits: { maxInvoices: 999999, maxPurchases: 999999, maxCustomers: 999999 }, modules: { ...DEFAULT_MODULES } }
 ];
 
 const MOCK_ADMINS: AdminProfile[] = [
@@ -658,8 +679,8 @@ export function SuperadminPanel() {
                         </div>
                       </div>
                     </div>
-                    <div className="p-6 flex-1 flex flex-col">
-                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">Included Features</label>
+                    <div className="p-6 flex-1 flex flex-col border-b border-slate-100">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Included Features (Text)</label>
                       <textarea
                         value={Array.isArray(plan.features) ? plan.features.join('\n') : (typeof plan.features === 'string' ? plan.features : '')}
                         onChange={(e) => {
@@ -667,10 +688,77 @@ export function SuperadminPanel() {
                           updated[index].features = e.target.value.split('\n');
                           setPlans(updated);
                         }}
-                        rows={6}
-                        className="w-full text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3 resize-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none flex-1 leading-relaxed"
+                        rows={3}
+                        className="w-full text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2 resize-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none leading-relaxed mb-4"
                         placeholder="Enter features (one per line)"
                       />
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Invoices</label>
+                          <input 
+                            type="number"
+                            value={plan.limits?.maxInvoices || 0}
+                            onChange={(e) => {
+                              const updated = [...plans];
+                              if (!updated[index].limits) updated[index].limits = { maxInvoices: 50, maxPurchases: 50, maxCustomers: 100 };
+                              updated[index].limits!.maxInvoices = parseInt(e.target.value) || 0;
+                              setPlans(updated);
+                            }}
+                            className="w-full text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded p-1.5 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Purchases</label>
+                          <input 
+                            type="number"
+                            value={plan.limits?.maxPurchases || 0}
+                            onChange={(e) => {
+                              const updated = [...plans];
+                              if (!updated[index].limits) updated[index].limits = { maxInvoices: 50, maxPurchases: 50, maxCustomers: 100 };
+                              updated[index].limits!.maxPurchases = parseInt(e.target.value) || 0;
+                              setPlans(updated);
+                            }}
+                            className="w-full text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded p-1.5 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">Max Customers</label>
+                          <input 
+                            type="number"
+                            value={plan.limits?.maxCustomers || 0}
+                            onChange={(e) => {
+                              const updated = [...plans];
+                              if (!updated[index].limits) updated[index].limits = { maxInvoices: 50, maxPurchases: 50, maxCustomers: 100 };
+                              updated[index].limits!.maxCustomers = parseInt(e.target.value) || 0;
+                              setPlans(updated);
+                            }}
+                            className="w-full text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded p-1.5 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 bg-slate-50 rounded-b-2xl">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Enabled Modules</label>
+                      <div className="grid grid-cols-2 gap-2 text-xs font-medium text-slate-700">
+                        {['invoice', 'purchase', 'customer', 'vendor', 'reports', 'subscription', 'settings', 'backupRestore', 'staffLogs'].map(mod => (
+                          <label key={mod} className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox"
+                              checked={plan.modules ? (plan.modules as any)[mod] : true}
+                              onChange={(e) => {
+                                const updated = [...plans];
+                                if (!updated[index].modules) updated[index].modules = { ...DEFAULT_MODULES };
+                                (updated[index].modules as any)[mod] = e.target.checked;
+                                setPlans(updated);
+                              }}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            {mod.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}
