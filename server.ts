@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import Database from "better-sqlite3";
+import cors from "cors";
 
 const dbPath = path.join(process.cwd(), "data.db");
 const db = new Database(dbPath);
@@ -206,24 +207,12 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 6000;
 
   // --- UNIVERSAL NUCLEAR CORS POLICY ---
-  // Catch all Preflight (OPTIONS) and standard requests
-  app.use((req, res, next) => {
-    const origin = req.headers.origin || '*';
-    
-    // Explicitly using * and disabling credentials for maximum cross-domain compatibility
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant-id, x-company-id, X-Tenant-Id, X-Company-Id, x-user-name, X-User-Name');
-    res.setHeader('Access-Control-Allow-Credentials', 'false');
-    res.setHeader('Access-Control-Max-Age', '86400');
-    res.setHeader('X-Backend-CORS', 'Nuclear-Applied-v3');
-
-    if (req.method === 'OPTIONS') {
-      console.log(`[CORS-PREFLIGHT] Authorized: ${req.url} from ${origin}`);
-      return res.status(204).end();
-    }
-    next();
-  });
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'x-tenant-id', 'x-company-id', 'X-Tenant-Id', 'X-Company-Id', 'x-user-name', 'X-User-Name'],
+    credentials: false // false since origin is '*'
+  }));
 
   app.use(express.json());
 

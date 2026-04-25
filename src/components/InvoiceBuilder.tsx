@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Save, Download, Calculator, RefreshCw, Printer, ChevronDown, ChevronUp, Palette, Upload, Image, FileDown, MessageCircle, Mail } from 'lucide-react';
+import { Plus, Trash2, Save, Download, Calculator, RefreshCw, Printer, ChevronDown, ChevronUp, Palette, Upload, Image, FileDown, MessageCircle, Mail, Settings } from 'lucide-react';
 import { InvoiceItem, Customer, BusinessProfile } from '../types';
 import { numberToWords } from '../utils/currencyUtils';
 import { API_URL } from '../config';
 import { sendWhatsAppMessage } from '../services/whatsappService';
+import { HSN_DATA } from '../hsnData';
 import html2pdf from 'html2pdf.js';
 
 const INDIAN_STATES = [
@@ -200,29 +201,55 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
   });
 
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   useEffect(() => {
     const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
     const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
-    const savedProfile = JSON.parse(localStorage.getItem('invoice_template_profile') || '{}');
 
-    if (activeCompany.name) {
-      setBusinessProfile(prev => ({
-        ...prev,
-        name: savedProfile.name || activeCompany.name || activeTenant.name || prev.name,
-        gstin: savedProfile.gstin || activeCompany.gstin || prev.gstin,
-        state: savedProfile.state || activeCompany.state || prev.state,
-        address: savedProfile.address || activeCompany.address || prev.address,
-        email: savedProfile.email || activeCompany.email || activeTenant.email || prev.email,
-        phone: savedProfile.phone || activeCompany.phone || activeTenant.phone || prev.phone,
-        bankName: savedProfile.bankName || prev.bankName,
-        accountNumber: savedProfile.accountNumber || prev.accountNumber,
-        ifsc: savedProfile.ifsc || prev.ifsc,
-        branch: savedProfile.branch || prev.branch,
-        accountHolderName: savedProfile.accountHolderName || prev.accountHolderName,
-        logo: savedProfile.logo || prev.logo
-      }));
-    }
+    const fetchCompanyProfile = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/settings`, {
+          headers: {
+            'x-tenant-id': activeTenant.id || 'default',
+            'x-company-id': activeCompany.id || 'default'
+          }
+        });
+        if (response.ok) {
+          const settings = await response.json();
+          const savedProfile = settings.invoice_profile || {};
+          const savedTerms = settings.invoice_terms;
+          
+          if (savedTerms) setTerms(savedTerms);
+          
+          if (activeCompany.name || savedProfile.name) {
+            setBusinessProfile(prev => ({
+              ...prev,
+              name: savedProfile.name || activeCompany.name || activeTenant.name || prev.name,
+              gstin: savedProfile.gstin || activeCompany.gstin || prev.gstin,
+              state: savedProfile.state || activeCompany.state || prev.state,
+              address: savedProfile.address || activeCompany.address || prev.address,
+              email: savedProfile.email || activeCompany.email || activeTenant.email || prev.email,
+              phone: savedProfile.phone || activeCompany.phone || activeTenant.phone || prev.phone,
+              altPhone: savedProfile.altPhone || prev.altPhone,
+              bankName: savedProfile.bankName || prev.bankName,
+              accountNumber: savedProfile.accountNumber || prev.accountNumber,
+              ifsc: savedProfile.ifsc || prev.ifsc,
+              branch: savedProfile.branch || prev.branch,
+              accountHolderName: savedProfile.accountHolderName || prev.accountHolderName,
+              logo: savedProfile.logo || prev.logo,
+              signature: savedProfile.signature || prev.signature,
+              upiId: savedProfile.upiId || prev.upiId,
+              qrCode: savedProfile.qrCode || prev.qrCode
+            }));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load company profile", e);
+      }
+    };
+    fetchCompanyProfile();
 
     const fetchItems = async () => {
       try {
@@ -443,6 +470,33 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
     setItems(prevItems => prevItems.map(item => 
       item.id === id ? { ...item, [field]: value } : item
     ));
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const activeTenant = JSON.parse(localStorage.getItem('active_tenant') || '{}');
+      const activeCompany = JSON.parse(localStorage.getItem('active_company') || '{"id": "default"}');
+      const res = await fetch(`${API_URL}/api/settings`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-tenant-id': activeTenant.id || 'default',
+          'x-company-id': activeCompany.id || 'default'
+        },
+        body: JSON.stringify({
+          invoice_profile: businessProfile,
+          invoice_terms: terms
+        })
+      });
+      if (res.ok) {
+        setIsProfileModalOpen(false);
+        alert('Company Invoice Profile saved successfully!');
+      } else {
+        alert('Failed to save profile on server.');
+      }
+    } catch(e) {
+      alert('Error saving profile');
+    }
   };
 
   const resetInvoice = () => {
@@ -700,36 +754,39 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
   };
 
   const handleDownloadPDF = async () => {
+    if (isDownloadingPdf) return;
     const element = document.getElementById('invoice-print-area');
     if (!element) return;
     
-    // Temporarily replace print-only class to render properly for html2pdf
-    // By cloning we prevent React DOM mismatch issues which might freeze
-    const clonedElement = element.cloneNode(true) as HTMLElement;
-    clonedElement.className = clonedElement.className.replace('print-only', '');
-    clonedElement.style.display = 'block';
-    clonedElement.style.width = '210mm'; // Force A4 width for the clone
+    setIsDownloadingPdf(true);
     
-    // Append to body temporarily so html2canvas can compute styles
-    clonedElement.style.position = 'absolute';
-    clonedElement.style.left = '-9999px';
-    document.body.appendChild(clonedElement);
+    const fallbackTimeout = setTimeout(() => {
+      setIsDownloadingPdf(false);
+      if (element) element.classList.add('print-only');
+      alert('PDF generation is taking too long. You can also use the Print button to Save as PDF.');
+    }, 10000);
     
     try {
+      element.classList.remove('print-only');
+      element.style.display = 'block';
+
       const opt = {
         margin: 0.2,
         filename: `${invoiceDetails.number}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.95 },
-        html2canvas: { scale: 1.5, useCORS: true, logging: false },
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' as const }
       };
       
-      await html2pdf().set(opt).from(clonedElement).save();
+      await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Failed to generate PDF:", error);
-      alert("Failed to generate PDF. Please try checking network or disabling adblock.");
+      alert("Failed to generate PDF automatically. Please use the Print button and choose 'Save as PDF'.");
     } finally {
-      document.body.removeChild(clonedElement);
+      element.style.display = '';
+      element.classList.add('print-only');
+      clearTimeout(fallbackTimeout);
+      setIsDownloadingPdf(false);
     }
   };
 
@@ -760,6 +817,12 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
 
   return (
     <>
+      <datalist id="hsn-list">
+        {HSN_DATA.map((h, i) => (
+          <option key={i} value={h.code}>{h.description}</option>
+        ))}
+      </datalist>
+
       {/* Screen View */}
       <div className="p-4 sm:p-8 max-w-6xl mx-auto no-print">
         <div className="mb-8">
@@ -816,10 +879,11 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
             <button 
               type="button"
               onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer whitespace-nowrap text-sm"
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap text-sm"
             >
-              <FileDown size={16} />
-              PDF
+              {isDownloadingPdf ? <RefreshCw size={16} className="animate-spin" /> : <FileDown size={16} />}
+              {isDownloadingPdf ? 'Creating...' : 'PDF'}
             </button>
             <button 
               type="button"
@@ -907,7 +971,16 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
           <div className="p-8 border-b border-slate-100 bg-slate-50/50">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               <div>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">{labels.billFrom}</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">{labels.billFrom}</h3>
+                  <button 
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg flex items-center font-medium transition-colors"
+                  >
+                    <Settings size={14} className="mr-1.5" />
+                    Edit Profile
+                  </button>
+                </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                   <div className="mb-4 flex items-center gap-4">
                     <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center border border-slate-200 overflow-hidden relative group">
@@ -963,10 +1036,17 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                     />
                     <input
                       type="text"
-                      value={businessProfile.phone}
+                      value={businessProfile.phone || ''}
                       onChange={(e) => setBusinessProfile({ ...businessProfile, phone: e.target.value })}
                       className="w-full text-sm text-slate-600 bg-transparent border-none focus:ring-0 p-0 placeholder-slate-300"
                       placeholder="Phone Number"
+                    />
+                    <input
+                      type="text"
+                      value={businessProfile.altPhone || ''}
+                      onChange={(e) => setBusinessProfile({ ...businessProfile, altPhone: e.target.value })}
+                      className="w-full text-sm text-slate-600 bg-transparent border-none focus:ring-0 p-0 placeholder-slate-300"
+                      placeholder="Alt Phone Number"
                     />
                   </div>
                   <div className="mt-4 pt-4 border-t border-slate-100">
@@ -1215,10 +1295,11 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                       </td>
                       <td className="py-3 px-2 align-top">
                         <input
+                          list="hsn-list"
                           type="text"
                           value={item.hsn}
                           onChange={(e) => updateItem(item.id, 'hsn', e.target.value)}
-                          placeholder="1234"
+                          placeholder="Search or enter HSN"
                           className="w-full bg-transparent border-none focus:ring-0 p-0 text-slate-600 placeholder-slate-300"
                         />
                       </td>
@@ -1453,7 +1534,7 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
                 <h2 className={`text-xl font-bold ${currentTheme.styles.headerText}`}>{businessProfile.name}</h2>
                 <p className={`text-sm ${currentTheme.styles.headerSubtext} max-w-[250px] ml-auto`}>{businessProfile.address}</p>
                 <p className={`text-sm ${currentTheme.styles.headerSubtext} mt-1`}>{businessProfile.email}</p>
-                <p className={`text-sm ${currentTheme.styles.headerSubtext}`}>{businessProfile.phone}</p>
+                <p className={`text-sm ${currentTheme.styles.headerSubtext}`}>Ph: {businessProfile.phone}{businessProfile.altPhone && `, ${businessProfile.altPhone}`}</p>
                 {isGstInvoice && (
                   <div className="mt-2 flex justify-end">
                     <span className={currentTheme.styles.badge}>GSTIN: {businessProfile.gstin}</span>
@@ -1579,11 +1660,19 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
             </p>
             
             <h3 className={currentTheme.styles.sectionTitle}>Bank Details</h3>
-            <div className={`text-sm ${currentTheme.styles.headerSubtext}`}>
-              <p>Bank Name: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.bankName}</span></p>
-              <p>Account No: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.accountNumber}</span></p>
-              <p>IFSC Code: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.ifsc}</span></p>
-              <p>Branch: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.branch}</span></p>
+            <div className="flex gap-4">
+              <div className={`text-sm ${currentTheme.styles.headerSubtext} flex-grow`}>
+                <p>Bank Name: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.bankName}</span></p>
+                <p>Account No: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.accountNumber}</span></p>
+                <p>IFSC Code: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.ifsc}</span></p>
+                <p>Branch: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.branch}</span></p>
+                {businessProfile.upiId && <p className="mt-1">UPI ID: <span className={`font-medium ${currentTheme.styles.headerText}`}>{businessProfile.upiId}</span></p>}
+              </div>
+              {businessProfile.qrCode && (
+                <div className="w-20 h-20 border border-slate-200 p-1 bg-white">
+                  <img src={businessProfile.qrCode} alt="QR Code" className="w-full h-full object-contain" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -1645,6 +1734,117 @@ export function InvoiceBuilder({ type = 'invoice', onCancel }: DocumentBuilderPr
           </div>
         </div>
       </div>
+      {/* Profile Modal */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white/80 backdrop-blur-md px-8 py-5 border-b border-slate-100 flex items-center justify-between z-10 space-x-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Edit Company Invoice Profile</h2>
+                <p className="text-sm text-slate-500">This profile is saved and reused to auto-fill all new invoices instantly.</p>
+              </div>
+              <button onClick={() => setIsProfileModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors">
+                Cancel
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-8">
+              {/* Business Details */}
+              <section>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Business Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Business Name</label>
+                    <input type="text" value={businessProfile.name} onChange={e => setBusinessProfile({...businessProfile, name: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">GSTIN</label>
+                    <input type="text" value={businessProfile.gstin} onChange={e => setBusinessProfile({...businessProfile, gstin: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Phone Number</label>
+                    <input type="text" value={businessProfile.phone || ''} onChange={e => setBusinessProfile({...businessProfile, phone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Alt Phone</label>
+                    <input type="text" value={businessProfile.altPhone || ''} onChange={e => setBusinessProfile({...businessProfile, altPhone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Email Address</label>
+                    <input type="text" value={businessProfile.email} onChange={e => setBusinessProfile({...businessProfile, email: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-bold text-slate-700">Business Address</label>
+                    <textarea value={businessProfile.address} onChange={e => setBusinessProfile({...businessProfile, address: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 h-24" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Bank Details */}
+              <section>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Bank Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Bank Name</label>
+                    <input type="text" value={businessProfile.bankName} onChange={e => setBusinessProfile({...businessProfile, bankName: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Account Number</label>
+                    <input type="text" value={businessProfile.accountNumber} onChange={e => setBusinessProfile({...businessProfile, accountNumber: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">IFSC Code</label>
+                    <input type="text" value={businessProfile.ifsc} onChange={e => setBusinessProfile({...businessProfile, ifsc: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Branch Name</label>
+                    <input type="text" value={businessProfile.branch} onChange={e => setBusinessProfile({...businessProfile, branch: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <label className="text-sm font-bold text-slate-700">UPI ID</label>
+                    <input type="text" value={businessProfile.upiId || ''} onChange={e => setBusinessProfile({...businessProfile, upiId: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20" />
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <label className="text-sm font-bold text-slate-700">Payment QR Code</label>
+                    <div className="border border-slate-200 p-2 rounded-xl flex items-center gap-4 bg-slate-50">
+                      {businessProfile.qrCode && <img src={businessProfile.qrCode} alt="QR Code" className="w-16 h-16 object-contain" />}
+                      <label className="cursor-pointer bg-white px-3 py-2 border border-slate-200 rounded hover:bg-slate-50 text-sm font-medium">
+                        Upload QR
+                        <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setBusinessProfile({...businessProfile, qrCode: reader.result as string});
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              
+              {/* Other Setup (Terms) */}
+              <section>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Terms & Conditions / Footer Info</h3>
+                <div className="space-y-2">
+                  <textarea value={terms} onChange={e => setTerms(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 h-32" />
+                </div>
+              </section>
+            </div>
+            
+            <div className="sticky bottom-0 bg-white border-t border-slate-100 p-6 flex justify-end gap-4 rounded-b-3xl">
+              <button onClick={() => setIsProfileModalOpen(false)} className="px-6 py-3 text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleSaveProfile} className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold transition-colors shadow-sm shadow-blue-600/20 flex items-center">
+                <Settings size={18} className="mr-2" />
+                Save Profile Globally
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

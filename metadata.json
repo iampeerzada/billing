@@ -1,5 +1,6 @@
 {
-  "name": "Remix: iFastX",
+  "name": "Remix: iFastX GST Billing Platform",
   "description": "GST Billing Platform",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

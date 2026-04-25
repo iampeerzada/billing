@@ -27,6 +27,7 @@ export interface BusinessProfile {
   address: string;
   email?: string;
   phone?: string;
+  altPhone?: string;
   bankName?: string;
   accountNumber?: string;
   ifsc?: string;
@@ -34,6 +35,8 @@ export interface BusinessProfile {
   accountHolderName?: string;
   logo?: string;
   signature?: string;
+  upiId?: string;
+  qrCode?: string;
 }
 
 export interface Invoice {
